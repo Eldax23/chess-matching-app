@@ -101,8 +101,7 @@ builder.Services.AddScoped<IBlockService, BlockService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 
 // Azure Blob Storage
-var blobConnectionString = builder.Configuration.GetConnectionString("AzureBlobStorage")
-    ?? throw new InvalidOperationException("Connection string 'AzureBlobStorage' not configured");
+var blobConnectionString = builder.Configuration.GetConnectionString("AzureBlobStorage");
 
 var containerName = builder.Configuration["Azure:BlobContainerName"] ?? "chess-app-photos";
 
@@ -186,7 +185,7 @@ app.UseAuthorization();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    
+
     try
     {
         Log.Information("Running database migrations...");

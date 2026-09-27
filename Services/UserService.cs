@@ -11,33 +11,27 @@ namespace ChessApp.Backend.Services;
 public interface IUserService
 {
     Task<UserProfileResponse> GetProfileAsync(Guid userId);
-    
     Task<UserPublicProfileResponse> GetPublicProfileAsync(Guid userId);
-    
     Task<UserProfileResponse> UpdateProfileAsync(Guid userId, UpdateProfileRequest request);
-    
     Task<string> UploadPhotoAsync(Guid userId, Stream fileStream, string fileName);
-    
     Task<SetAvailabilityResponse> SetAvailabilityAsync(Guid userId, SetAvailabilityRequest request);
-    
     Task<NearbyUsersResponse> FindNearbyUsersAsync(Guid userId, int radiusKm = 10, bool? hasBoard = null, int limit = 50);
-    
     Task ExpireOldAvailabilityAsync();
 }
 
 public class UserService : IUserService
 {
     private readonly ApplicationDbContext _dbContext;
-    private readonly BlobContainerClient _blobContainerClient;
+    // private readonly BlobContainerClient _blobContainerClient;
     private readonly ILogger<UserService> _logger;
 
     public UserService(
         ApplicationDbContext dbContext,
-        BlobContainerClient blobContainerClient,
+        // BlobContainerClient blobContainerClient,
         ILogger<UserService> logger)
     {
         _dbContext = dbContext;
-        _blobContainerClient = blobContainerClient;
+        // _blobContainerClient = blobContainerClient;
         _logger = logger;
     }
 
@@ -136,11 +130,11 @@ public class UserService : IUserService
 
         try
         {
-            var blobClient = _blobContainerClient.GetBlobClient(blobName);
-            await blobClient.UploadAsync(fileStream, overwrite: true);
+            // var blobClient = _blobContainerClient.GetBlobClient(blobName);
+            // await blobClient.UploadAsync(fileStream, overwrite: true);
 
             // Update user's photo URL
-            user.PhotoUrl = blobClient.Uri.ToString();
+            // user.PhotoUrl = blobClient.Uri.ToString();
             user.UpdatedAt = DateTime.UtcNow;
 
             await _dbContext.SaveChangesAsync();
@@ -171,10 +165,10 @@ public class UserService : IUserService
             // Create Point from latitude/longitude (longitude first in PostGIS)
             var geometryFactory = new NetTopologySuite.Geometries.GeometryFactory(
                 new NetTopologySuite.Geometries.PrecisionModel(), 4326);
-            
+
             user.Location = geometryFactory.CreatePoint(
                 new NetTopologySuite.Geometries.Coordinate(request.Longitude, request.Latitude));
-            
+
             user.LastLocationUpdate = DateTime.UtcNow;
             user.AvailabilityExpiresAt = DateTime.UtcNow.AddHours(request.ExpiresInHours);
         }
