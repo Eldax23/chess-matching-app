@@ -28,12 +28,14 @@ public class User
     public int? FideRating { get; set; }
     public DateTime? FideRatingUpdatedAt { get; set; }
 
-    // Chess.com
+    // Chess.com - denormalized from the (unverified) LinkedAccount, set only
+    // by ChessComIntegrationService
     public string? ChessComUsername { get; set; }
     public string? ChessComUrl { get; set; }
     public int? ChessComRating { get; set; }
 
-    // Lichess
+    // Lichess - denormalized from the verified LinkedAccount (set only by
+    // LichessIntegrationService, never from user input)
     public string? LichessUsername { get; set; }
     public string? LichessUrl { get; set; }
     public int? LichessRating { get; set; }
@@ -56,6 +58,7 @@ public class User
     public virtual List<Block> Blocking { get; set; } = new();
     public virtual List<RefreshToken> RefreshTokens { get; set; } = new();
     public virtual List<RatingSnapshot> RatingSnapshots { get; set; } = new();
+    public virtual List<LinkedAccount> LinkedAccounts { get; set; } = new();
     public virtual List<Review> ReviewsGiven { get; set; } = new();
     public virtual List<Review> ReviewsReceived { get; set; } = new();
 }

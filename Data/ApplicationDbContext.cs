@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite;
 using NetTopologySuite.Geometries;
@@ -20,6 +22,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<UserStats> UserStats { get; set; } = null!;
     public DbSet<Block> Blocks { get; set; } = null!;
     public DbSet<RatingSnapshot> RatingSnapshots { get; set; } = null!;
+    public DbSet<LinkedAccount> LinkedAccounts { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
     public DbSet<Review> Reviews { get; set; } = null!;
 
@@ -283,6 +286,49 @@ public class ApplicationDbContext : DbContext
 
             entity.Property(e => e.CapturedAt)
                 .HasDefaultValueSql("NOW()");
+        });
+
+        // =====================================================
+        // LINKED ACCOUNTS
+        // =====================================================
+
+        modelBuilder.Entity<LinkedAccount>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            // One account per platform per user, and a verified external
+            // account can only be claimed by one user. Unverified claims
+            // (chess.com usernames) may overlap, so a squatter can't block
+            // the real owner.
+            entity.HasIndex(e => new { e.UserId, e.Platform }).IsUnique();
+            entity.HasIndex(e => new { e.Platform, e.ExternalId })
+                .IsUnique()
+                .HasFilter("is_verified = true");
+            entity.HasIndex(e => e.LastSyncedAt);
+
+            entity.Property(e => e.Platform).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ExternalId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Username).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.ProfileUrl).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.Title).HasMaxLength(10);
+
+            entity.Property(e => e.Ratings)
+                .HasColumnType("jsonb")
+                .HasConversion(
+                    v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                    v => JsonSerializer.Deserialize<List<PlatformRating>>(v, (JsonSerializerOptions?)null) ?? new(),
+                    new ValueComparer<List<PlatformRating>>(
+                        (a, b) => JsonSerializer.Serialize(a, (JsonSerializerOptions?)null) ==
+                                  JsonSerializer.Serialize(b, (JsonSerializerOptions?)null),
+                        v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null).GetHashCode(),
+                        v => JsonSerializer.Deserialize<List<PlatformRating>>(
+                            JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                            (JsonSerializerOptions?)null)!));
+
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.LinkedAccounts)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // =====================================================
