@@ -45,6 +45,7 @@ public class UserService : IUserService
     {
         var user = await _dbContext.Users
             .Include(u => u.Stats)
+            .Include(u => u.LinkedAccounts)
             .FirstOrDefaultAsync(u => u.Id == userId);
 
         if (user == null)
@@ -57,6 +58,7 @@ public class UserService : IUserService
     {
         var user = await _dbContext.Users
             .Include(u => u.Stats)
+            .Include(u => u.LinkedAccounts)
             .FirstOrDefaultAsync(u => u.Id == userId);
 
         if (user == null)
@@ -73,6 +75,7 @@ public class UserService : IUserService
             FideRating = user.FideRating,
             ChessComRating = user.ChessComRating,
             LichessRating = user.LichessRating,
+            LinkedAccounts = LinkedAccountMapping.ToDtos(user.LinkedAccounts),
             Stats = user.Stats != null ? MapToStatsDto(user.Stats) : null
         };
     }
@@ -81,6 +84,7 @@ public class UserService : IUserService
     {
         var user = await _dbContext.Users
             .Include(u => u.Stats)
+            .Include(u => u.LinkedAccounts)
             .FirstOrDefaultAsync(u => u.Id == userId);
 
         if (user == null)
@@ -102,18 +106,6 @@ public class UserService : IUserService
         {
             user.FideRating = request.FideRating;
             user.FideRatingUpdatedAt = DateTime.UtcNow;
-        }
-
-        if (!string.IsNullOrEmpty(request.ChessComUsername))
-        {
-            user.ChessComUsername = request.ChessComUsername;
-            user.ChessComUrl = $"https://chess.com/member/{request.ChessComUsername}";
-        }
-
-        if (!string.IsNullOrEmpty(request.LichessUsername))
-        {
-            user.LichessUsername = request.LichessUsername;
-            user.LichessUrl = $"https://lichess.org/{request.LichessUsername}";
         }
 
         user.UpdatedAt = DateTime.UtcNow;
@@ -305,6 +297,7 @@ public class UserService : IUserService
                 Url = user.LichessUrl,
                 Rating = user.LichessRating
             } : null,
+            LinkedAccounts = LinkedAccountMapping.ToDtos(user.LinkedAccounts),
             Stats = user.Stats != null ? MapToStatsDto(user.Stats) : null,
             CreatedAt = user.CreatedAt,
             LastLogin = user.LastLogin
