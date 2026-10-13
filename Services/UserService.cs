@@ -119,35 +119,17 @@ public class UserService : IUserService
         return MapToProfileResponse(user);
     }
 
-    public async Task<string> UploadPhotoAsync(Guid userId, Stream fileStream, string fileName)
+    public Task<string> UploadPhotoAsync(Guid userId, Stream fileStream, string fileName)
     {
-        var user = await _dbContext.Users.FindAsync(userId);
-        if (user == null)
-            throw new KeyNotFoundException($"User {userId} not found");
-
-        // Generate unique blob name
-        var blobName = $"profiles/{userId}/{Guid.NewGuid()}-{fileName}";
-
-        try
-        {
-            // var blobClient = _blobContainerClient.GetBlobClient(blobName);
-            // await blobClient.UploadAsync(fileStream, overwrite: true);
-
-            // Update user's photo URL
-            // user.PhotoUrl = blobClient.Uri.ToString();
-            user.UpdatedAt = DateTime.UtcNow;
-
-            await _dbContext.SaveChangesAsync();
-
-            _logger.LogInformation("Photo uploaded for user: {UserId}", userId);
-
-            return user.PhotoUrl;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to upload photo for user: {UserId}", userId);
-            throw;
-        }
+        // Azure Blob Storage is temporarily disabled (see fix/disable-azure-blob-storage).
+        // Fail loudly instead of pretending the upload succeeded: the caller
+        // (ProfileController.UploadPhoto) already catches and returns a 500,
+        // so this surfaces as a real error to the client rather than a
+        // silent no-op that leaves PhotoUrl unchanged.
+        _logger.LogWarning(
+            "Photo upload skipped for user {UserId}: Azure Blob Storage is disabled", userId);
+        throw new InvalidOperationException(
+            "Photo upload is temporarily unavailable (Blob Storage is disabled)");
     }
 
     public async Task<SetAvailabilityResponse> SetAvailabilityAsync(
