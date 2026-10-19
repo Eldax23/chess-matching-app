@@ -18,6 +18,9 @@ appsettings.Development.json
 .env
 .env.local
 
+# Local photo storage (LocalPhotoStorageService, dev only)
+/uploads/
+
 # Database
 *.db
 *.sqlite

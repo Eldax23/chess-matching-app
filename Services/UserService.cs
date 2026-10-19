@@ -4,7 +4,6 @@ using NetTopologySuite.Geometries;
 using ChessApp.Backend.Data;
 using ChessApp.Backend.DTOs;
 using ChessApp.Backend.Models;
-using Azure.Storage.Blobs;
 
 namespace ChessApp.Backend.Services;
 
@@ -28,16 +27,16 @@ public interface IUserService
 public class UserService : IUserService
 {
     private readonly ApplicationDbContext _dbContext;
-    private readonly BlobContainerClient _blobContainerClient;
+    private readonly IPhotoStorageService _photoStorageService;
     private readonly ILogger<UserService> _logger;
 
     public UserService(
         ApplicationDbContext dbContext,
-        BlobContainerClient blobContainerClient,
+        IPhotoStorageService photoStorageService,
         ILogger<UserService> logger)
     {
         _dbContext = dbContext;
-        _blobContainerClient = blobContainerClient;
+        _photoStorageService = photoStorageService;
         _logger = logger;
     }
 
@@ -123,29 +122,15 @@ public class UserService : IUserService
         if (user == null)
             throw new KeyNotFoundException($"User {userId} not found");
 
-        // Generate unique blob name
-        var blobName = $"profiles/{userId}/{Guid.NewGuid()}-{fileName}";
+        var photoUrl = await _photoStorageService.UploadAsync(userId, fileStream, fileName);
 
-        try
-        {
-            var blobClient = _blobContainerClient.GetBlobClient(blobName);
-            await blobClient.UploadAsync(fileStream, overwrite: true);
+        user.PhotoUrl = photoUrl;
+        user.UpdatedAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
 
-            // Update user's photo URL
-            user.PhotoUrl = blobClient.Uri.ToString();
-            user.UpdatedAt = DateTime.UtcNow;
+        _logger.LogInformation("Photo uploaded for user: {UserId}", userId);
 
-            await _dbContext.SaveChangesAsync();
-
-            _logger.LogInformation("Photo uploaded for user: {UserId}", userId);
-
-            return user.PhotoUrl;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to upload photo for user: {UserId}", userId);
-            throw;
-        }
+        return photoUrl;
     }
 
     public async Task<SetAvailabilityResponse> SetAvailabilityAsync(
