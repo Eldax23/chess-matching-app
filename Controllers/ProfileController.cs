@@ -133,7 +133,7 @@ public class ProfileController : ControllerBase
             var userId = GetUserId();
             using (var stream = file.OpenReadStream())
             {
-                var photoUrl = await _userService.UploadPhotoAsync(userId, stream, file.FileName);
+                var photoUrl = await _userService.UploadPhotoAsync(userId, stream, file.ContentType);
                 return Ok(new { photoUrl });
             }
         }

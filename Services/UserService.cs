@@ -15,7 +15,7 @@ public interface IUserService
     
     Task<UserProfileResponse> UpdateProfileAsync(Guid userId, UpdateProfileRequest request);
     
-    Task<string> UploadPhotoAsync(Guid userId, Stream fileStream, string fileName);
+    Task<string> UploadPhotoAsync(Guid userId, Stream fileStream, string contentType);
     
     Task<SetAvailabilityResponse> SetAvailabilityAsync(Guid userId, SetAvailabilityRequest request);
     
@@ -116,13 +116,13 @@ public class UserService : IUserService
         return MapToProfileResponse(user);
     }
 
-    public async Task<string> UploadPhotoAsync(Guid userId, Stream fileStream, string fileName)
+    public async Task<string> UploadPhotoAsync(Guid userId, Stream fileStream, string contentType)
     {
         var user = await _dbContext.Users.FindAsync(userId);
         if (user == null)
             throw new KeyNotFoundException($"User {userId} not found");
 
-        var photoUrl = await _photoStorageService.UploadAsync(userId, fileStream, fileName);
+        var photoUrl = await _photoStorageService.UploadAsync(userId, fileStream, contentType);
 
         user.PhotoUrl = photoUrl;
         user.UpdatedAt = DateTime.UtcNow;

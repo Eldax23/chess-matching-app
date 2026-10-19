@@ -18,16 +18,14 @@ public class S3PhotoStorageService : IPhotoStorageService
         _s3Client = s3Client;
         _logger = logger;
 
-        _bucketName = configuration["Storage:S3:BucketName"]
-            ?? throw new InvalidOperationException("Storage:S3:BucketName not configured");
-
-        _publicBaseUrl = (configuration["Storage:S3:PublicBaseUrl"]
-            ?? throw new InvalidOperationException("Storage:S3:PublicBaseUrl not configured")).TrimEnd('/');
+        // Presence is checked at startup in Program.cs
+        _bucketName = configuration["Storage:S3:BucketName"]!;
+        _publicBaseUrl = configuration["Storage:S3:PublicBaseUrl"]!.TrimEnd('/');
     }
 
-    public async Task<string> UploadAsync(Guid userId, Stream fileStream, string fileName)
+    public async Task<string> UploadAsync(Guid userId, Stream fileStream, string contentType)
     {
-        var key = $"profiles/{userId}/{Guid.NewGuid()}-{fileName}";
+        var key = PhotoKeys.For(userId, contentType);
 
         try
         {
@@ -36,7 +34,10 @@ public class S3PhotoStorageService : IPhotoStorageService
                 BucketName = _bucketName,
                 Key = key,
                 InputStream = fileStream,
-                AutoCloseStream = false
+                ContentType = contentType,
+                AutoCloseStream = false,
+                // R2 doesn't support streaming SigV4 payload signing
+                DisablePayloadSigning = true
             };
 
             await _s3Client.PutObjectAsync(request);

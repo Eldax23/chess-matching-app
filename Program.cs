@@ -137,20 +137,31 @@ if (builder.Environment.IsDevelopment())
 }
 else
 {
-    var s3Section = builder.Configuration.GetSection("Storage:S3");
-    var s3ServiceUrl = s3Section["ServiceUrl"]
-        ?? throw new InvalidOperationException("Storage:S3:ServiceUrl not configured");
-    var s3AccessKey = s3Section["AccessKey"]
-        ?? throw new InvalidOperationException("Storage:S3:AccessKey not configured");
-    var s3SecretKey = s3Section["SecretKey"]
-        ?? throw new InvalidOperationException("Storage:S3:SecretKey not configured");
+    // Fail at startup, not on the first upload. appsettings.json leaves
+    // these empty; set them per environment (env vars or secrets).
+    string RequireS3Setting(string key)
+    {
+        var value = builder.Configuration[$"Storage:S3:{key}"];
+        return string.IsNullOrWhiteSpace(value)
+            ? throw new InvalidOperationException($"Storage:S3:{key} not configured")
+            : value;
+    }
+
+    var s3ServiceUrl = RequireS3Setting("ServiceUrl");
+    var s3AccessKey = RequireS3Setting("AccessKey");
+    var s3SecretKey = RequireS3Setting("SecretKey");
+    RequireS3Setting("BucketName");
+    RequireS3Setting("PublicBaseUrl");
 
     builder.Services.AddSingleton<IAmazonS3>(_ => new AmazonS3Client(
         new BasicAWSCredentials(s3AccessKey, s3SecretKey),
         new AmazonS3Config
         {
             ServiceURL = s3ServiceUrl,
-            ForcePathStyle = true
+            ForcePathStyle = true,
+            // R2 rejects the CRC checksums newer SDKs add to every request by default
+            RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
+            ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED
         }));
 
     builder.Services.AddSingleton<IPhotoStorageService, S3PhotoStorageService>();

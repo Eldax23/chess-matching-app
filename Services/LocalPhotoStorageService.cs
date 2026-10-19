@@ -23,14 +23,12 @@ public class LocalPhotoStorageService : IPhotoStorageService
         _publicBaseUrl = (configuration["Storage:PublicBaseUrl"] ?? "http://localhost:5000").TrimEnd('/');
     }
 
-    public async Task<string> UploadAsync(Guid userId, Stream fileStream, string fileName)
+    public async Task<string> UploadAsync(Guid userId, Stream fileStream, string contentType)
     {
-        var safeFileName = $"{Guid.NewGuid()}-{Path.GetFileName(fileName)}";
-        var relativeDir = Path.Combine("profiles", userId.ToString());
-        var absoluteDir = Path.Combine(_uploadsRoot, relativeDir);
-        Directory.CreateDirectory(absoluteDir);
+        var key = PhotoKeys.For(userId, contentType);
+        var absolutePath = Path.Combine(_uploadsRoot, key);
+        Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
 
-        var absolutePath = Path.Combine(absoluteDir, safeFileName);
         using (var output = new FileStream(absolutePath, FileMode.Create))
         {
             await fileStream.CopyToAsync(output);
@@ -38,6 +36,6 @@ public class LocalPhotoStorageService : IPhotoStorageService
 
         _logger.LogInformation("Photo saved locally for user {UserId} at {Path}", userId, absolutePath);
 
-        return $"{_publicBaseUrl}/uploads/profiles/{userId}/{safeFileName}";
+        return $"{_publicBaseUrl}/uploads/{key}";
     }
 }
