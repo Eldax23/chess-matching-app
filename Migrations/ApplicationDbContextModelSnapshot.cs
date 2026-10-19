@@ -68,6 +68,105 @@ namespace ChessApp.Backend.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ChessApp.Backend.Models.LinkedAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("ConnectedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("connected_at");
+
+                    b.Property<int>("Draws")
+                        .HasColumnType("integer")
+                        .HasColumnName("draws");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("external_id");
+
+                    b.Property<int>("GamesPlayed")
+                        .HasColumnType("integer")
+                        .HasColumnName("games_played");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_verified");
+
+                    b.Property<DateTime>("LastSyncedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("last_synced_at");
+
+                    b.Property<int>("Losses")
+                        .HasColumnType("integer")
+                        .HasColumnName("losses");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("platform");
+
+                    b.Property<DateTime?>("PlatformJoinedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("platform_joined_at");
+
+                    b.Property<DateTime?>("PlatformLastSeenAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("platform_last_seen_at");
+
+                    b.Property<string>("ProfileUrl")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("profile_url");
+
+                    b.Property<string>("Ratings")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("ratings");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("title");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("username");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer")
+                        .HasColumnName("wins");
+
+                    b.HasKey("Id")
+                        .HasName("pk_linked_accounts");
+
+                    b.HasIndex("LastSyncedAt")
+                        .HasDatabaseName("ix_linked_accounts_last_synced_at");
+
+                    b.HasIndex("Platform", "ExternalId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_linked_accounts_platform_external_id")
+                        .HasFilter("is_verified = true");
+
+                    b.HasIndex("UserId", "Platform")
+                        .IsUnique()
+                        .HasDatabaseName("ix_linked_accounts_user_id_platform");
+
+                    b.ToTable("linked_accounts", (string)null);
+                });
+
             modelBuilder.Entity("ChessApp.Backend.Models.Match", b =>
                 {
                     b.Property<Guid>("Id")
@@ -582,6 +681,18 @@ namespace ChessApp.Backend.Migrations
                     b.Navigation("Blocker");
                 });
 
+            modelBuilder.Entity("ChessApp.Backend.Models.LinkedAccount", b =>
+                {
+                    b.HasOne("ChessApp.Backend.Models.User", "User")
+                        .WithMany("LinkedAccounts")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_linked_accounts_users_user_id");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ChessApp.Backend.Models.Match", b =>
                 {
                     b.HasOne("ChessApp.Backend.Models.User", "Player1")
@@ -710,6 +821,8 @@ namespace ChessApp.Backend.Migrations
                     b.Navigation("BlockedBy");
 
                     b.Navigation("Blocking");
+
+                    b.Navigation("LinkedAccounts");
 
                     b.Navigation("MatchesAsPlayer1");
 

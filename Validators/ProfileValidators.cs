@@ -12,7 +12,5 @@ public class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequ
         RuleFor(x => x.FideId).MaximumLength(20);
         RuleFor(x => x.FideRating).InclusiveBetween(0, 4000)
             .When(x => x.FideRating.HasValue);
-        RuleFor(x => x.ChessComUsername).MaximumLength(100);
-        RuleFor(x => x.LichessUsername).MaximumLength(100);
     }
 }

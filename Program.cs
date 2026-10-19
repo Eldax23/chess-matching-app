@@ -100,6 +100,32 @@ builder.Services.AddScoped<IMatchService, MatchService>();
 builder.Services.AddScoped<IBlockService, BlockService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 
+// Lichess account linking (OAuth PKCE)
+builder.Services.Configure<LichessOptions>(builder.Configuration.GetSection("Lichess"));
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient<ILichessClient, LichessClient>((sp, client) =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<LichessOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(options.UserAgent);
+});
+builder.Services.AddScoped<ILichessIntegrationService, LichessIntegrationService>();
+
+// chess.com account linking by username (public API, unverified)
+builder.Services.Configure<ChessComOptions>(builder.Configuration.GetSection("ChessCom"));
+builder.Services.AddHttpClient<IChessComClient, ChessComClient>((sp, client) =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ChessComOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(options.UserAgent);
+});
+builder.Services.AddScoped<IChessComIntegrationService, ChessComIntegrationService>();
+
+// Periodic rating refresh for all linked accounts
+builder.Services.AddHostedService<LinkedAccountSyncWorker>();
+
 // Azure Blob Storage
 var blobConnectionString = builder.Configuration.GetConnectionString("AzureBlobStorage")
     ?? throw new InvalidOperationException("Connection string 'AzureBlobStorage' not configured");

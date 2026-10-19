@@ -7,8 +7,7 @@ public class UpdateProfileRequest
     public bool? HasBoard { get; set; }
     public string? FideId { get; set; }
     public int? FideRating { get; set; }
-    public string? ChessComUsername { get; set; }
-    public string? LichessUsername { get; set; }
+    // Lichess and chess.com are linked via IntegrationsController
 }
 
 public class ChessRatingDto
@@ -47,6 +46,9 @@ public class UserProfileResponse
     public ChessRatingDto? ChessCom { get; set; }
     public ChessRatingDto? Lichess { get; set; }
 
+    // Verified platform accounts with per-time-control ratings
+    public List<LinkedAccountDto> LinkedAccounts { get; set; } = new();
+
     public UserStatsDto? Stats { get; set; }
 
     public DateTime CreatedAt { get; set; }
@@ -65,6 +67,8 @@ public class UserPublicProfileResponse
     public int? FideRating { get; set; }
     public int? ChessComRating { get; set; }
     public int? LichessRating { get; set; }
+
+    public List<LinkedAccountDto> LinkedAccounts { get; set; } = new();
 
     public UserStatsDto? Stats { get; set; }
 }
