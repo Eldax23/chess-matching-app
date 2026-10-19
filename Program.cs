@@ -1,10 +1,12 @@
 using System.Text;
+using Amazon.Runtime;
+using Amazon.S3;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using EFCore.NamingConventions;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
-using Azure.Storage.Blobs;
 using ChessApp.Backend.Data;
 using ChessApp.Backend.Services;
 using ChessApp.Backend.Validators;
@@ -126,18 +128,44 @@ builder.Services.AddScoped<IChessComIntegrationService, ChessComIntegrationServi
 // Periodic rating refresh for all linked accounts
 builder.Services.AddHostedService<LinkedAccountSyncWorker>();
 
-// Azure Blob Storage
-var blobConnectionString = builder.Configuration.GetConnectionString("AzureBlobStorage")
-    ?? throw new InvalidOperationException("Connection string 'AzureBlobStorage' not configured");
+// Photo storage: local disk in Development (free, no signup needed),
+// an S3-compatible provider (Cloudflare R2, Backblaze B2, AWS S3, ...)
+// in every other environment - see Storage:S3 in appsettings.json.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddSingleton<IPhotoStorageService, LocalPhotoStorageService>();
+}
+else
+{
+    // Fail at startup, not on the first upload. appsettings.json leaves
+    // these empty; set them per environment (env vars or secrets).
+    string RequireS3Setting(string key)
+    {
+        var value = builder.Configuration[$"Storage:S3:{key}"];
+        return string.IsNullOrWhiteSpace(value)
+            ? throw new InvalidOperationException($"Storage:S3:{key} not configured")
+            : value;
+    }
 
-var containerName = builder.Configuration["Azure:BlobContainerName"] ?? "chess-app-photos";
+    var s3ServiceUrl = RequireS3Setting("ServiceUrl");
+    var s3AccessKey = RequireS3Setting("AccessKey");
+    var s3SecretKey = RequireS3Setting("SecretKey");
+    RequireS3Setting("BucketName");
+    RequireS3Setting("PublicBaseUrl");
 
-builder.Services.AddScoped(_ =>
-    new BlobContainerClient(
-        new Uri($"https://{builder.Configuration["Azure:StorageAccount"]}.blob.core.windows.net/{containerName}"),
-        new Azure.Storage.StorageSharedKeyCredential(
-            builder.Configuration["Azure:StorageAccount"],
-            builder.Configuration["Azure:StorageKey"])));
+    builder.Services.AddSingleton<IAmazonS3>(_ => new AmazonS3Client(
+        new BasicAWSCredentials(s3AccessKey, s3SecretKey),
+        new AmazonS3Config
+        {
+            ServiceURL = s3ServiceUrl,
+            ForcePathStyle = true,
+            // R2 rejects the CRC checksums newer SDKs add to every request by default
+            RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
+            ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED
+        }));
+
+    builder.Services.AddSingleton<IPhotoStorageService, S3PhotoStorageService>();
+}
 
 // =====================================================
 // CORS
@@ -196,6 +224,17 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+
+    // Serves photos saved by LocalPhotoStorageService back out at /uploads/...
+    var uploadsPath = Path.Combine(app.Environment.ContentRootPath,
+        app.Configuration["Storage:LocalUploadsPath"] ?? "uploads");
+    Directory.CreateDirectory(uploadsPath);
+
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(uploadsPath),
+        RequestPath = "/uploads"
+    });
 }
 
 app.UseHttpsRedirection();

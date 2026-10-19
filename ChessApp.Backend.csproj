@@ -59,8 +59,11 @@
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="5.0.0" />
 
-    <!-- Azure Storage -->
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.18.0" />
+    <!-- Object storage for profile photos: S3-compatible client, pointed at
+         Cloudflare R2 in production (see Storage:S3 in appsettings.json and
+         Program.cs). Development uses LocalPhotoStorageService instead -
+         no package or credentials needed there. -->
+    <PackageReference Include="AWSSDK.S3" Version="4.0.104.3" />
 
     <!-- Note: SignalR (AddSignalR, MapHub, Hub, IHubContext) is part of the
          ASP.NET Core shared framework since .NET Core 3 - no package needed.
