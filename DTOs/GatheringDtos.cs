@@ -55,6 +55,8 @@ public class GatheringDto
 
     // The caller's own pending request, if any
     public Guid? MyPendingRequestId { get; set; }
+    // People you've already reviewed for this gathering (only filled in on the detail view)
+    public List<Guid> ReviewedByMe { get; set; } = new();
 
     public DateTime CreatedAt { get; set; }
 }

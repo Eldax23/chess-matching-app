@@ -292,6 +292,25 @@ public class GatheringServiceTests
     }
 
     [Fact]
+    public async Task EndedGathering_SaysWhoYouAlreadyReviewed()
+    {
+        var host = await AddUserAsync("host");
+        var guest = await AddUserAsync("guest");
+        var gathering = await _service.CreateAsync(host.Id, Tonight());
+        var request = await _service.RequestToJoinAsync(gathering.Id, guest.Id, new JoinGatheringRequest());
+        await _service.ApproveAsync(request.Id, host.Id);
+        await _service.EndAsync(gathering.Id, host.Id);
+
+        Assert.Empty((await _service.GetAsync(gathering.Id, host.Id)).ReviewedByMe);
+
+        _db.Reviews.Add(new Review { Id = Guid.NewGuid(), GatheringId = gathering.Id, ReviewerId = host.Id, RevieweeId = guest.Id });
+        await _db.SaveChangesAsync();
+
+        Assert.Equal(new[] { guest.Id }, (await _service.GetAsync(gathering.Id, host.Id)).ReviewedByMe);
+        Assert.Empty((await _service.GetAsync(gathering.Id, guest.Id)).ReviewedByMe);
+    }
+
+    [Fact]
     public async Task ExpireStale_EndsFinishedGatherings_AndExpiresRequests()
     {
         var host = await AddUserAsync("host");
