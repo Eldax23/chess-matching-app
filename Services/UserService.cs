@@ -201,7 +201,10 @@ public class UserService : IUserService
             .Take(limit)
             .ToListAsync();
 
-        var response = new NearbyUsersResponse();
+        var response = new NearbyUsersResponse
+        {
+            Center = new LocationDto { Latitude = currentUser.Location.Y, Longitude = currentUser.Location.X }
+        };
 
         foreach (var user in nearbyUsers)
         {
