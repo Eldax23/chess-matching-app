@@ -2,6 +2,7 @@ using System.Text;
 using Amazon.Runtime;
 using Amazon.S3;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using EFCore.NamingConventions;
 using Microsoft.Extensions.FileProviders;
@@ -49,6 +50,12 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var secretKey = jwtSettings["SecretKey"]
     ?? throw new InvalidOperationException("JWT SecretKey not configured");
+
+// appsettings.json ships a placeholder so local runs work; anywhere else it
+// would let anyone mint tokens, so a real secret (32+ chars) is required
+const string PlaceholderJwtSecret = "your-super-secret-key-min-32-characters-long-for-hs256";
+if (!builder.Environment.IsDevelopment() && (secretKey == PlaceholderJwtSecret || secretKey.Length < 32))
+    throw new InvalidOperationException("Set Jwt:SecretKey to a random secret of at least 32 characters");
 
 builder.Services
     .AddAuthentication(options =>
@@ -129,10 +136,15 @@ builder.Services.AddScoped<IChessComIntegrationService, ChessComIntegrationServi
 builder.Services.AddHostedService<LinkedAccountSyncWorker>();
 builder.Services.AddHostedService<GatheringMaintenanceWorker>();
 
-// Photo storage: local disk in Development (free, no signup needed),
-// an S3-compatible provider (Cloudflare R2, Backblaze B2, AWS S3, ...)
-// in every other environment - see Storage:S3 in appsettings.json.
-if (builder.Environment.IsDevelopment())
+// Photo storage: local disk (free, no signup needed) or an S3-compatible
+// provider (Cloudflare R2, Backblaze B2, AWS S3, ...) - see Storage:S3 in
+// appsettings.json. Storage:Provider picks one; by default Development uses
+// local disk and every other environment S3. A hosted staging server can use
+// Local with Storage:LocalUploadsPath on a persistent disk.
+var useLocalPhotos = string.Equals(
+    builder.Configuration["Storage:Provider"] ?? (builder.Environment.IsDevelopment() ? "Local" : "S3"),
+    "Local", StringComparison.OrdinalIgnoreCase);
+if (useLocalPhotos)
 {
     builder.Services.AddSingleton<IPhotoStorageService, LocalPhotoStorageService>();
 }
@@ -217,17 +229,31 @@ builder.Services.AddSwaggerGen();
 // BUILD APPLICATION
 // =====================================================
 
+// Hosts like Azure App Service and Fly.io terminate HTTPS in front of the app
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 // =====================================================
 // MIDDLEWARE
 // =====================================================
 
-if (app.Environment.IsDevelopment())
+// Swagger everywhere except production, so staging can be poked at in a browser
+if (!app.Environment.IsProduction())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
 
+if (useLocalPhotos)
+{
     // Serves photos saved by LocalPhotoStorageService back out at /uploads/...
     var uploadsPath = Path.Combine(app.Environment.ContentRootPath,
         app.Configuration["Storage:LocalUploadsPath"] ?? "uploads");
