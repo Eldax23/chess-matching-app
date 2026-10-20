@@ -196,13 +196,15 @@ builder.Services.AddCors(options =>
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<ValidationActionFilter>();
-});
+})
+.AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter()));
 
 // FluentValidation: registers every AbstractValidator<T> in this assembly
 // (see Validators.cs) so ValidationActionFilter can resolve IValidator<T>
 // for whatever DTO an action receives.
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
-builder.Services.AddSignalR();
+builder.Services.AddSignalR()
+    .AddJsonProtocol(options => options.PayloadSerializerOptions.Converters.Add(new UtcDateTimeConverter()));
 
 // =====================================================
 // SWAGGER / OPENAPI

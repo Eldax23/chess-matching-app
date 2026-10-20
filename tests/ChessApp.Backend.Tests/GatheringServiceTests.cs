@@ -180,6 +180,17 @@ public class GatheringServiceTests
     }
 
     [Fact]
+    public async Task Nearby_LeavesOutGatheringsYoureAlreadyIn()
+    {
+        var host = await AddUserAsync("host");
+        var stranger = await AddUserAsync("stranger");
+        var gathering = await _service.CreateAsync(host.Id, Tonight());
+
+        Assert.Empty((await _service.GetNearbyAsync(host.Id, 30.05, 31.24)).Gatherings);
+        Assert.Contains((await _service.GetNearbyAsync(stranger.Id, 30.05, 31.24)).Gatherings, g => g.Id == gathering.Id);
+    }
+
+    [Fact]
     public async Task JoinRequest_ExpiresAfterFifteenMinutes()
     {
         var host = await AddUserAsync("host");

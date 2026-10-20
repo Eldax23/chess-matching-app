@@ -15,7 +15,7 @@ public interface IAuthService
     Task<(User user, string accessToken, string refreshToken)> RegisterAsync(
         string email, string username, string password, string? fullName);
     
-    Task<(string accessToken, string refreshToken)> LoginAsync(string email, string password);
+    Task<(User user, string accessToken, string refreshToken)> LoginAsync(string email, string password);
     
     Task<string> RefreshAccessTokenAsync(string refreshToken);
     
@@ -76,7 +76,7 @@ public class AuthService : IAuthService
         return (user, accessToken, refreshToken);
     }
 
-    public async Task<(string accessToken, string refreshToken)> LoginAsync(
+    public async Task<(User user, string accessToken, string refreshToken)> LoginAsync(
         string email, string password)
     {
         var user = await _dbContext.Users
@@ -101,7 +101,7 @@ public class AuthService : IAuthService
         var accessToken = GenerateAccessToken(user);
         var refreshToken = await GenerateRefreshTokenAsync(user.Id);
 
-        return (accessToken, refreshToken);
+        return (user, accessToken, refreshToken);
     }
 
     public async Task<string> RefreshAccessTokenAsync(string refreshToken)
