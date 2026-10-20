@@ -38,18 +38,14 @@ public class AvailabilityController : ControllerBase
             var userId = GetUserId();
             var response = await _userService.SetAvailabilityAsync(userId, request);
 
-            // Broadcast to all connected clients
+            // Broadcast to all connected clients. Never include coordinates here:
+            // every connected user receives this, wherever they are.
             await NotificationHub.BroadcastAvailabilityChange(_hubContext,
                 new UserAvailabilityChangedPayload
                 {
                     UserId = userId,
                     IsAvailable = request.IsAvailable,
-                    HasBoard = request.HasBoard,
-                    Location = request.IsAvailable ? new LocationDto
-                    {
-                        Latitude = request.Latitude,
-                        Longitude = request.Longitude
-                    } : null
+                    HasBoard = request.HasBoard
                 });
 
             return Ok(response);

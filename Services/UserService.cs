@@ -210,8 +210,7 @@ public class UserService : IUserService
 
         foreach (var user in nearbyUsers)
         {
-            var distanceMeters = user.Location!.Distance(currentUser.Location);
-            var distanceKm = Math.Round(distanceMeters / 1000.0, 2);
+            var distanceKm = Math.Round(GeoDistance.Kilometers(user.Location!, currentUser.Location), 2);
 
             if (hasBoard.HasValue && user.HasBoard != hasBoard.Value)
                 continue;

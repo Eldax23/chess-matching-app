@@ -27,7 +27,6 @@ public class UserAvailabilityChangedPayload
     public Guid UserId { get; set; }
     public bool IsAvailable { get; set; }
     public bool HasBoard { get; set; }
-    public LocationDto? Location { get; set; }
 }
 
 public class UserCameOnlinePayload

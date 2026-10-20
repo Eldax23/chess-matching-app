@@ -65,7 +65,7 @@ public class NotificationHub : Hub
     // PUBLIC METHODS (can be called from clients)
     // =====================================================
 
-    public async Task UpdateAvailability(bool isAvailable, double? latitude = null, double? longitude = null)
+    public async Task UpdateAvailability(bool isAvailable)
     {
         var userIdClaim = Context.User?.FindFirst("sub")?.Value ??
                          Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -80,12 +80,7 @@ public class NotificationHub : Hub
         {
             UserId = userId,
             IsAvailable = isAvailable,
-            HasBoard = isAvailable, // You might want to track this separately
-            Location = latitude.HasValue && longitude.HasValue ? new LocationDto
-            {
-                Latitude = latitude.Value,
-                Longitude = longitude.Value
-            } : null
+            HasBoard = isAvailable // You might want to track this separately
         };
 
         // Broadcast to all clients

@@ -315,8 +315,7 @@ public class ProposalService : IProposalService
         // Calculate distance from user to proposal's meeting location if both exist
         if (userLocation != null && proposal.MeetingLocation != null)
         {
-            var distanceMeters = userLocation.Distance(proposal.MeetingLocation);
-            distance = (decimal)Math.Round(distanceMeters / 1000.0, 2); // Convert to km
+            distance = (decimal)Math.Round(GeoDistance.Kilometers(userLocation, proposal.MeetingLocation), 2);
         }
 
         return new ProposalWithDistanceDto
