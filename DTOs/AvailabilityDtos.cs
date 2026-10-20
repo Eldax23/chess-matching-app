@@ -41,6 +41,8 @@ public class NearbyUserDto
 
 public class NearbyUsersResponse
 {
+    // Where the search was measured from: your last beacon, not your live GPS
+    public LocationDto Center { get; set; } = null!;
     public List<NearbyUserDto> Users { get; set; } = new();
     public int Count => Users.Count;
 }

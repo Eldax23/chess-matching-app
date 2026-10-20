@@ -155,7 +155,15 @@ public class GatheringService : IGatheringService
         }
 
         var viewer = await _dbContext.Users.FindAsync(userId);
-        return MapToDto(gathering, userId, viewer?.Location, await MyPendingRequestIdsAsync(userId));
+        var dto = MapToDto(gathering, userId, viewer?.Location, await MyPendingRequestIdsAsync(userId));
+        if (isMember && gathering.Status == GatheringStatus.Ended)
+        {
+            dto.ReviewedByMe = await _dbContext.Reviews
+                .Where(r => r.GatheringId == gatheringId && r.ReviewerId == userId)
+                .Select(r => r.RevieweeId)
+                .ToListAsync();
+        }
+        return dto;
     }
 
     public async Task<JoinRequestDto> RequestToJoinAsync(Guid gatheringId, Guid userId, JoinGatheringRequest request)
