@@ -97,8 +97,6 @@ builder.Services.AddAuthorization();
 // Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IProposalService, ProposalService>();
-builder.Services.AddScoped<IMatchService, MatchService>();
 builder.Services.AddScoped<IBlockService, BlockService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IGatheringService, GatheringService>();

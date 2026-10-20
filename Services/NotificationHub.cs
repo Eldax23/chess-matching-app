@@ -90,28 +90,6 @@ public class NotificationHub : Hub
             userId, isAvailable);
     }
 
-    // Called by server/backend to notify user of incoming proposal
-    public async Task NotifyProposalReceived(Guid userId, ProposalReceivedPayload payload)
-    {
-        var connectionId = GetUserConnectionId(userId);
-        if (connectionId != null)
-        {
-            await Clients.Client(connectionId)
-                .SendAsync("ProposalReceived", payload);
-        }
-    }
-
-    // Called by server to notify user of proposal response
-    public async Task NotifyProposalResponded(Guid userId, ProposalRespondedPayload payload)
-    {
-        var connectionId = GetUserConnectionId(userId);
-        if (connectionId != null)
-        {
-            await Clients.Client(connectionId)
-                .SendAsync("ProposalResponded", payload);
-        }
-    }
-
     // Called by server for general announcements
     public async Task BroadcastMessage(string message)
     {
@@ -126,30 +104,6 @@ public class NotificationHub : Hub
     {
         UserConnections.TryGetValue(userId, out var connectionId);
         return connectionId;
-    }
-
-    public static async Task SendProposalNotification(
-        IHubContext<NotificationHub> hubContext,
-        Guid receiverId,
-        ProposalReceivedPayload payload)
-    {
-        if (UserConnections.TryGetValue(receiverId, out var connectionId))
-        {
-            await hubContext.Clients.Client(connectionId)
-                .SendAsync("ProposalReceived", payload);
-        }
-    }
-
-    public static async Task SendProposalRespondedNotification(
-        IHubContext<NotificationHub> hubContext,
-        Guid proposerId,
-        ProposalRespondedPayload payload)
-    {
-        if (UserConnections.TryGetValue(proposerId, out var connectionId))
-        {
-            await hubContext.Clients.Client(connectionId)
-                .SendAsync("ProposalResponded", payload);
-        }
     }
 
     public static async Task BroadcastAvailabilityChange(

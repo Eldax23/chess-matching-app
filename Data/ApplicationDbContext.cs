@@ -17,9 +17,6 @@ public class ApplicationDbContext : DbContext
 
     // DbSets
     public DbSet<User> Users { get; set; } = null!;
-    public DbSet<Proposal> Proposals { get; set; } = null!;
-    public DbSet<Match> Matches { get; set; } = null!;
-    public DbSet<UserStats> UserStats { get; set; } = null!;
     public DbSet<Block> Blocks { get; set; } = null!;
     public DbSet<RatingSnapshot> RatingSnapshots { get; set; } = null!;
     public DbSet<LinkedAccount> LinkedAccounts { get; set; } = null!;
@@ -86,31 +83,6 @@ public class ApplicationDbContext : DbContext
                 .HasDefaultValueSql("NOW()");
 
             // Relationships
-            entity.HasMany(e => e.ProposalsSent)
-                .WithOne(p => p.Proposer)
-                .HasForeignKey(p => p.ProposerId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasMany(e => e.ProposalsReceived)
-                .WithOne(p => p.Receiver)
-                .HasForeignKey(p => p.ReceiverId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasMany(e => e.MatchesAsPlayer1)
-                .WithOne(m => m.Player1)
-                .HasForeignKey(m => m.Player1Id)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasMany(e => e.MatchesAsPlayer2)
-                .WithOne(m => m.Player2)
-                .HasForeignKey(m => m.Player2Id)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(e => e.Stats)
-                .WithOne(s => s.User)
-                .HasForeignKey<UserStats>(s => s.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-
             entity.HasMany(e => e.BlockedBy)
                 .WithOne(b => b.Blocked)
                 .HasForeignKey(b => b.BlockedId)
@@ -130,93 +102,6 @@ public class ApplicationDbContext : DbContext
                 .WithOne(r => r.Reviewer)
                 .HasForeignKey(r => r.ReviewerId)
                 .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // =====================================================
-        // PROPOSALS
-        // =====================================================
-
-        modelBuilder.Entity<Proposal>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-
-            entity.HasIndex(e => new { e.ReceiverId, e.Status })
-                .HasFilter("status = 'pending'");
-
-            entity.HasIndex(e => e.ProposerId);
-            entity.HasIndex(e => e.Status);
-            entity.HasIndex(e => e.ExpiresAt);
-
-            // Spatial index for meeting location queries
-            entity.HasIndex(e => e.MeetingLocation)
-                .HasMethod("GIST");
-
-            entity.Property(e => e.Status)
-                .HasConversion(
-                    v => v.ToString().ToLowerInvariant(),
-                    v => Enum.Parse<ProposalStatus>(v, ignoreCase: true));
-
-            entity.Property(e => e.Message).HasColumnType("text");
-
-            // PostGIS Point for meeting location
-            entity.Property(e => e.MeetingLocation)
-                .HasColumnType("geography (point, 4326)");
-
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("NOW()");
-
-            // Constraint: proposer != receiver
-            entity.ToTable(t => t.HasCheckConstraint("ck_different_users", "proposer_id != receiver_id"));
-
-            // Optional match relationship
-            entity.HasOne(e => e.Match)
-                .WithOne(m => m.Proposal)
-                .HasForeignKey<Proposal>(p => p.MatchId)
-                .OnDelete(DeleteBehavior.SetNull);
-        });
-
-        // =====================================================
-        // MATCHES
-        // =====================================================
-
-        modelBuilder.Entity<Match>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-
-            entity.HasIndex(e => e.Player1Id);
-            entity.HasIndex(e => e.Player2Id);
-            entity.HasIndex(e => e.PlayedAt);
-
-            entity.Property(e => e.Outcome)
-                .HasConversion(
-                    v => MatchOutcomeToString(v),
-                    v => MatchOutcomeFromString(v));
-
-            entity.Property(e => e.Location)
-                .HasColumnType("geography (point, 4326)");
-
-            entity.Property(e => e.TimeControl).HasMaxLength(50);
-            entity.Property(e => e.Pgn).HasColumnType("text");
-            entity.Property(e => e.Notes).HasColumnType("text");
-
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("NOW()");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("NOW()");
-        });
-
-        // =====================================================
-        // USER STATS
-        // =====================================================
-
-        modelBuilder.Entity<UserStats>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-
-            entity.HasIndex(e => e.UserId);
-
-            entity.Property(e => e.LastStatsUpdate)
-                .HasDefaultValueSql("NOW()");
         });
 
         // =====================================================
@@ -360,26 +245,31 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => e.RevieweeId);
             entity.HasIndex(e => e.ReviewerId);
 
-            // Unique constraint: one review per reviewer per match
-            entity.HasIndex(e => new { e.MatchId, e.ReviewerId })
+            // One review per reviewer, per person, per gathering
+            entity.HasIndex(e => new { e.GatheringId, e.ReviewerId, e.RevieweeId })
                 .IsUnique();
 
             entity.Property(e => e.Comment).HasColumnType("text");
 
+            entity.Property(e => e.Tags)
+                .HasConversion(
+                    v => string.Join(",", v),
+                    v => v.Split(",", StringSplitOptions.RemoveEmptyEntries).ToList(),
+                    new ValueComparer<List<string>>(
+                        (a, b) => a!.SequenceEqual(b!),
+                        v => v.Aggregate(0, (h, t) => HashCode.Combine(h, t.GetHashCode())),
+                        v => v.ToList()))
+                .HasMaxLength(500);
+
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("NOW()");
 
-            entity.HasOne(e => e.Match)
-                .WithMany(m => m.Reviews)
-                .HasForeignKey(e => e.MatchId)
+            entity.HasOne(e => e.Gathering)
+                .WithMany()
+                .HasForeignKey(e => e.GatheringId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Constraint: reviewer != reviewee, rating within 1-5
-            entity.ToTable(t =>
-            {
-                t.HasCheckConstraint("ck_different_users", "reviewer_id != reviewee_id");
-                t.HasCheckConstraint("ck_rating_range", "rating >= 1 AND rating <= 5");
-            });
+            entity.ToTable(t => t.HasCheckConstraint("ck_different_users", "reviewer_id != reviewee_id"));
         });
 
         // =====================================================
@@ -464,24 +354,6 @@ public class ApplicationDbContext : DbContext
         });
     }
 
-    private static string MatchOutcomeToString(MatchOutcome outcome) => outcome switch
-    {
-        MatchOutcome.NotPlayed => "not_played",
-        MatchOutcome.Player1Won => "player1_won",
-        MatchOutcome.Player2Won => "player2_won",
-        MatchOutcome.Draw => "draw",
-        _ => outcome.ToString().ToLowerInvariant()
-    };
-
-    private static MatchOutcome MatchOutcomeFromString(string value) => value switch
-    {
-        "not_played" => MatchOutcome.NotPlayed,
-        "player1_won" => MatchOutcome.Player1Won,
-        "player2_won" => MatchOutcome.Player2Won,
-        "draw" => MatchOutcome.Draw,
-        _ => Enum.Parse<MatchOutcome>(value, ignoreCase: true)
-    };
-
     // Override SaveChanges to update UpdatedAt
     public override int SaveChanges()
     {
@@ -499,7 +371,7 @@ public class ApplicationDbContext : DbContext
     {
         var entries = ChangeTracker
             .Entries()
-            .Where(e => e.Entity is User or Match);
+            .Where(e => e.Entity is User or Gathering);
 
         foreach (var entry in entries)
         {

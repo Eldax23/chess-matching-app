@@ -49,11 +49,6 @@ public class User
     public List<string> DeviceTokens { get; set; } = new();
 
     // Navigation
-    public virtual List<Proposal> ProposalsSent { get; set; } = new();
-    public virtual List<Proposal> ProposalsReceived { get; set; } = new();
-    public virtual List<Match> MatchesAsPlayer1 { get; set; } = new();
-    public virtual List<Match> MatchesAsPlayer2 { get; set; } = new();
-    public virtual UserStats? Stats { get; set; }
     public virtual List<Block> BlockedBy { get; set; } = new();
     public virtual List<Block> Blocking { get; set; } = new();
     public virtual List<RefreshToken> RefreshTokens { get; set; } = new();
