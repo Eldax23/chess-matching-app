@@ -78,12 +78,15 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var (accessToken, refreshToken) = await _authService.LoginAsync(
+            var (user, accessToken, refreshToken) = await _authService.LoginAsync(
                 request.Email,
                 request.Password);
 
             var response = new AuthResponse
             {
+                UserId = user.Id,
+                Email = user.Email,
+                Username = user.Username,
                 AccessToken = accessToken,
                 RefreshToken = refreshToken,
                 ExpiresIn = 3600

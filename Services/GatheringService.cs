@@ -113,6 +113,10 @@ public class GatheringService : IGatheringService
             if (gathering.Members.Any(m => blocked.Contains(m.UserId)))
                 continue;
 
+            // Gatherings you're already in live under "mine", not "nearby"
+            if (gathering.Members.Any(m => m.UserId == userId))
+                continue;
+
             response.Gatherings.Add(MapToDto(gathering, userId, origin, myPending));
         }
 
