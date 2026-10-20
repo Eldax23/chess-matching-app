@@ -25,6 +25,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<LinkedAccount> LinkedAccounts { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
     public DbSet<Review> Reviews { get; set; } = null!;
+    public DbSet<Gathering> Gatherings { get; set; } = null!;
+    public DbSet<GatheringMember> GatheringMembers { get; set; } = null!;
+    public DbSet<JoinRequest> JoinRequests { get; set; } = null!;
+    public DbSet<JoinRequestRejection> JoinRequestRejections { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -237,6 +241,112 @@ public class ApplicationDbContext : DbContext
 
             // Constraint: blocker != blocked
             entity.ToTable(t => t.HasCheckConstraint("ck_different_users", "blocker_id != blocked_id"));
+        });
+
+        // =====================================================
+        // GATHERINGS
+        // =====================================================
+
+        modelBuilder.Entity<Gathering>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.HasIndex(e => e.HostId);
+            entity.HasIndex(e => e.EndsAt)
+                .HasFilter("status IN ('open', 'gathered')");
+            entity.HasIndex(e => e.Location)
+                .HasMethod("GIST");
+
+            entity.Property(e => e.Status)
+                .HasConversion(
+                    v => v.ToString().ToLowerInvariant(),
+                    v => Enum.Parse<GatheringStatus>(v, ignoreCase: true))
+                .HasMaxLength(20);
+
+            entity.Property(e => e.VenueName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Note).HasColumnType("text");
+            entity.Property(e => e.Location)
+                .HasColumnType("geography (point, 4326)")
+                .IsRequired();
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("NOW()");
+
+            entity.HasOne(e => e.Host)
+                .WithMany()
+                .HasForeignKey(e => e.HostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(t => t.HasCheckConstraint("ck_time_window", "ends_at > starts_at"));
+        });
+
+        modelBuilder.Entity<GatheringMember>(entity =>
+        {
+            entity.HasKey(e => new { e.GatheringId, e.UserId });
+
+            entity.HasIndex(e => e.UserId);
+
+            entity.Property(e => e.JoinedAt)
+                .HasDefaultValueSql("NOW()");
+
+            entity.HasOne(e => e.Gathering)
+                .WithMany(g => g.Members)
+                .HasForeignKey(e => e.GatheringId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<JoinRequest>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.HasIndex(e => e.GatheringId);
+            entity.HasIndex(e => e.RequesterId);
+
+            // At most one pending request per person per gathering
+            entity.HasIndex(e => new { e.GatheringId, e.RequesterId })
+                .IsUnique()
+                .HasFilter("status = 'pending'");
+
+            entity.Property(e => e.Status)
+                .HasConversion(
+                    v => v.ToString().ToLowerInvariant(),
+                    v => Enum.Parse<JoinRequestStatus>(v, ignoreCase: true))
+                .HasMaxLength(20);
+
+            entity.Property(e => e.Message).HasMaxLength(500);
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("NOW()");
+
+            entity.HasOne(e => e.Gathering)
+                .WithMany(g => g.JoinRequests)
+                .HasForeignKey(e => e.GatheringId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Requester)
+                .WithMany()
+                .HasForeignKey(e => e.RequesterId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<JoinRequestRejection>(entity =>
+        {
+            entity.HasKey(e => new { e.JoinRequestId, e.UserId });
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("NOW()");
+
+            entity.HasOne(e => e.JoinRequest)
+                .WithMany(r => r.Rejections)
+                .HasForeignKey(e => e.JoinRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // =====================================================
