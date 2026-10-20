@@ -1,0 +1,24 @@
+# Render Blueprint for the staging API (free plan).
+# Render: New > Blueprint > pick this repo. It asks for DATABASE_URL (Neon's
+# connection string) and generates the JWT secret itself.
+services:
+  - type: web
+    name: blitzmate-api
+    runtime: docker
+    plan: free
+    branch: main
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Staging
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: Jwt__SecretKey
+        generateValue: true
+      # The free plan has no persistent disk, so uploaded photos are lost on
+      # each deploy or restart. Fine for staging; switch to S3 (R2) to keep them.
+      - key: Storage__Provider
+        value: Local
+      - key: Storage__PublicBaseUrl
+        value: https://blitzmate-api.onrender.com

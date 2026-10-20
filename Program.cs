@@ -33,6 +33,10 @@ builder.Host.UseSerilog();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not configured");
 
+// Hosted Postgres (Neon, Render, ...) hands out postgres:// URLs; Npgsql wants key=value
+if (connectionString.StartsWith("postgres://") || connectionString.StartsWith("postgresql://"))
+    connectionString = PostgresUrl.ToConnectionString(connectionString);
+
 // Enable NTS (NetTopologySuite) for geospatial queries
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
