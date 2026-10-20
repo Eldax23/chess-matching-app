@@ -16,6 +16,9 @@ public interface IReviewService
 
 public class ReviewService : IReviewService
 {
+    // Reviews open when a gathering ends and stay open for a week
+    public static readonly TimeSpan ReviewWindow = TimeSpan.FromDays(7);
+
     private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<ReviewService> _logger;
 
@@ -27,30 +30,43 @@ public class ReviewService : IReviewService
 
     public async Task<ReviewDto> CreateReviewAsync(Guid reviewerId, CreateReviewRequest request)
     {
-        var match = await _dbContext.Matches.FindAsync(request.MatchId);
-        if (match == null)
-            throw new KeyNotFoundException($"Match {request.MatchId} not found");
+        var gathering = await _dbContext.Gatherings
+            .Include(g => g.Members)
+            .FirstOrDefaultAsync(g => g.Id == request.GatheringId)
+            ?? throw new KeyNotFoundException($"Gathering {request.GatheringId} not found");
 
-        if (match.Player1Id != reviewerId && match.Player2Id != reviewerId)
-            throw new UnauthorizedAccessException("Only participants of this match can leave a review");
+        if (!gathering.Members.Any(m => m.UserId == reviewerId))
+            throw new UnauthorizedAccessException("Only people in this gathering can leave reviews");
 
-        var expectedRevieweeId = match.Player1Id == reviewerId ? match.Player2Id : match.Player1Id;
-        if (request.RevieweeId != expectedRevieweeId)
-            throw new InvalidOperationException("RevieweeId must be the other participant in the match");
+        if (reviewerId == request.RevieweeId)
+            throw new InvalidOperationException("You can't review yourself");
 
-        var alreadyReviewed = await _dbContext.Reviews
-            .AnyAsync(r => r.MatchId == request.MatchId && r.ReviewerId == reviewerId);
+        if (!gathering.Members.Any(m => m.UserId == request.RevieweeId))
+            throw new InvalidOperationException("You can only review people who were in this gathering");
+
+        var endedAt = gathering.Status == GatheringStatus.Ended ? gathering.EndedAt ?? gathering.EndsAt : (DateTime?)null;
+        if (endedAt == null)
+            throw new InvalidOperationException("Reviews open once the gathering has ended");
+
+        if (DateTime.UtcNow > endedAt.Value + ReviewWindow)
+            throw new InvalidOperationException("Reviews for this gathering have closed");
+
+        var alreadyReviewed = await _dbContext.Reviews.AnyAsync(r =>
+            r.GatheringId == request.GatheringId &&
+            r.ReviewerId == reviewerId &&
+            r.RevieweeId == request.RevieweeId);
 
         if (alreadyReviewed)
-            throw new InvalidOperationException("You have already reviewed this match");
+            throw new InvalidOperationException("You have already reviewed this person for this gathering");
 
         var review = new Review
         {
             Id = Guid.NewGuid(),
-            MatchId = request.MatchId,
+            GatheringId = request.GatheringId,
             ReviewerId = reviewerId,
             RevieweeId = request.RevieweeId,
-            Rating = request.Rating,
+            Tags = request.Tags.Distinct().ToList(),
+            NoShow = request.NoShow,
             Comment = request.Comment,
             CreatedAt = DateTime.UtcNow
         };
@@ -58,8 +74,8 @@ public class ReviewService : IReviewService
         _dbContext.Reviews.Add(review);
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("Review created: {ReviewId} for match {MatchId} by {ReviewerId} of {RevieweeId}",
-            review.Id, request.MatchId, reviewerId, request.RevieweeId);
+        _logger.LogInformation("Review created: {ReviewId} for gathering {GatheringId} by {ReviewerId} of {RevieweeId}",
+            review.Id, request.GatheringId, reviewerId, request.RevieweeId);
 
         var reviewer = await _dbContext.Users.FindAsync(reviewerId);
 
@@ -72,9 +88,15 @@ public class ReviewService : IReviewService
             .Include(r => r.Reviewer)
             .Where(r => r.RevieweeId == userId);
 
-        var averageRating = await query.AnyAsync()
-            ? await query.AverageAsync(r => (double)r.Rating)
-            : (double?)null;
+        // Tags live in one column, so count them in memory; a person's reviews are few
+        var allTags = await query.Select(r => r.Tags).ToListAsync();
+        var tagCounts = allTags
+            .SelectMany(tags => tags)
+            .GroupBy(tag => tag)
+            .Select(g => new ReviewTagCountDto { Tag = g.Key, Count = g.Count() })
+            .OrderByDescending(t => t.Count)
+            .ThenBy(t => t.Tag)
+            .ToList();
 
         var reviews = await query
             .OrderByDescending(r => r.CreatedAt)
@@ -85,7 +107,8 @@ public class ReviewService : IReviewService
         return new ReviewListResponse
         {
             Reviews = reviews.Select(r => MapToDto(r, r.Reviewer)).ToList(),
-            AverageRating = averageRating.HasValue ? Math.Round(averageRating.Value, 2) : null
+            TagCounts = tagCounts,
+            NoShowCount = await query.CountAsync(r => r.NoShow)
         };
     }
 
@@ -110,12 +133,13 @@ public class ReviewService : IReviewService
         return new ReviewDto
         {
             Id = review.Id,
-            MatchId = review.MatchId,
+            GatheringId = review.GatheringId,
             ReviewerId = review.ReviewerId,
             ReviewerUsername = reviewer.Username,
             ReviewerPhotoUrl = reviewer.PhotoUrl,
             RevieweeId = review.RevieweeId,
-            Rating = review.Rating,
+            Tags = review.Tags,
+            NoShow = review.NoShow,
             Comment = review.Comment,
             CreatedAt = review.CreatedAt
         };

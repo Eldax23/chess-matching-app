@@ -43,7 +43,6 @@ public class UserService : IUserService
     public async Task<UserProfileResponse> GetProfileAsync(Guid userId)
     {
         var user = await _dbContext.Users
-            .Include(u => u.Stats)
             .Include(u => u.LinkedAccounts)
             .FirstOrDefaultAsync(u => u.Id == userId);
 
@@ -56,7 +55,6 @@ public class UserService : IUserService
     public async Task<UserPublicProfileResponse> GetPublicProfileAsync(Guid userId)
     {
         var user = await _dbContext.Users
-            .Include(u => u.Stats)
             .Include(u => u.LinkedAccounts)
             .FirstOrDefaultAsync(u => u.Id == userId);
 
@@ -74,15 +72,13 @@ public class UserService : IUserService
             FideRating = user.FideRating,
             ChessComRating = user.ChessComRating,
             LichessRating = user.LichessRating,
-            LinkedAccounts = LinkedAccountMapping.ToDtos(user.LinkedAccounts),
-            Stats = user.Stats != null ? MapToStatsDto(user.Stats) : null
+            LinkedAccounts = LinkedAccountMapping.ToDtos(user.LinkedAccounts)
         };
     }
 
     public async Task<UserProfileResponse> UpdateProfileAsync(Guid userId, UpdateProfileRequest request)
     {
         var user = await _dbContext.Users
-            .Include(u => u.Stats)
             .Include(u => u.LinkedAccounts)
             .FirstOrDefaultAsync(u => u.Id == userId);
 
@@ -201,7 +197,6 @@ public class UserService : IUserService
                 !_dbContext.Blocks.Any(b =>
                     (b.BlockerId == userId && b.BlockedId == u.Id) ||
                     (b.BlockerId == u.Id && b.BlockedId == userId)))
-            .Include(u => u.Stats)
             .OrderBy(u => u.Location!.Distance(currentUser.Location))
             .Take(limit)
             .ToListAsync();
@@ -210,8 +205,7 @@ public class UserService : IUserService
 
         foreach (var user in nearbyUsers)
         {
-            var distanceMeters = user.Location!.Distance(currentUser.Location);
-            var distanceKm = Math.Round(distanceMeters / 1000.0, 2);
+            var distanceKm = Math.Round(GeoDistance.Kilometers(user.Location!, currentUser.Location), 2);
 
             if (hasBoard.HasValue && user.HasBoard != hasBoard.Value)
                 continue;
@@ -227,8 +221,7 @@ public class UserService : IUserService
                 ChessComRating = user.ChessComRating,
                 LichessRating = user.LichessRating,
                 HasBoard = user.HasBoard,
-                DistanceKm = (decimal)distanceKm,
-                Stats = user.Stats != null ? MapToStatsDto(user.Stats) : null
+                DistanceKm = (decimal)distanceKm
             });
         }
 
@@ -283,22 +276,8 @@ public class UserService : IUserService
                 Rating = user.LichessRating
             } : null,
             LinkedAccounts = LinkedAccountMapping.ToDtos(user.LinkedAccounts),
-            Stats = user.Stats != null ? MapToStatsDto(user.Stats) : null,
             CreatedAt = user.CreatedAt,
             LastLogin = user.LastLogin
-        };
-    }
-
-    private UserStatsDto MapToStatsDto(UserStats stats)
-    {
-        return new UserStatsDto
-        {
-            TotalMatchesPlayed = stats.TotalMatchesPlayed,
-            TotalWins = stats.TotalWins,
-            TotalLosses = stats.TotalLosses,
-            TotalDraws = stats.TotalDraws,
-            WinRate = stats.WinRate,
-            AvgOpponentRating = stats.AvgOpponentRating
         };
     }
 }

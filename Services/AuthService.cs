@@ -65,15 +65,7 @@ public class AuthService : IAuthService
             UpdatedAt = DateTime.UtcNow
         };
 
-        // Create user stats
-        var stats = new UserStats
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id
-        };
-
         _dbContext.Users.Add(user);
-        _dbContext.UserStats.Add(stats);
         await _dbContext.SaveChangesAsync();
 
         _logger.LogInformation("User registered: {Email}", email);

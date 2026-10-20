@@ -32,6 +32,13 @@ jobs:
           set -o pipefail
           dotnet build ChessApp.Backend.csproj --no-restore --configuration Release 2>&1 | tee build.log
 
+      - name: Test
+        id: test
+        if: success()
+        run: |
+          set -o pipefail
+          dotnet test tests/ChessApp.Backend.Tests --configuration Release 2>&1 | tee test.log
+
       # Surface failures as check-run annotations, queryable via the plain
       # REST API (api.github.com), since the raw log download endpoint
       # redirects to Azure Blob Storage which isn't reachable from every
@@ -40,7 +47,7 @@ jobs:
       - name: Surface failure as annotations
         if: failure()
         run: |
-          for f in restore.log build.log; do
+          for f in restore.log build.log test.log; do
             if [ -f "$f" ]; then
               echo "----- tail of $f -----"
               tail -n 60 "$f" | while IFS= read -r line; do
@@ -50,9 +57,3 @@ jobs:
               done
             fi
           done
-
-      # No test project exists yet (xunit/Moq are referenced in the main
-      # project for when unit tests are added - see NEXT_STEPS_PLAN.md BE-8).
-      # Once a ChessApp.Backend.Tests project exists, add:
-      #   - name: Test
-      #     run: dotnet test --no-build --configuration Release

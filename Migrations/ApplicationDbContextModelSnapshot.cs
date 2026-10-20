@@ -68,6 +68,191 @@ namespace ChessApp.Backend.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ChessApp.Backend.Models.Gathering", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("ended_at");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("ends_at");
+
+                    b.Property<Guid>("HostId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("host_id");
+
+                    b.Property<Point>("Location")
+                        .IsRequired()
+                        .HasColumnType("geography (point, 4326)")
+                        .HasColumnName("location");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text")
+                        .HasColumnName("note");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("starts_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("VenueName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("venue_name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_gatherings");
+
+                    b.HasIndex("EndsAt")
+                        .HasDatabaseName("ix_gatherings_ends_at")
+                        .HasFilter("status IN ('open', 'gathered')");
+
+                    b.HasIndex("HostId")
+                        .HasDatabaseName("ix_gatherings_host_id");
+
+                    b.HasIndex("Location")
+                        .HasDatabaseName("ix_gatherings_location");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
+
+                    b.ToTable("gatherings", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_time_window", "ends_at > starts_at");
+                        });
+                });
+
+            modelBuilder.Entity("ChessApp.Backend.Models.GatheringMember", b =>
+                {
+                    b.Property<Guid>("GatheringId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("gathering_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTime>("JoinedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("joined_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("GatheringId", "UserId")
+                        .HasName("pk_gathering_members");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_gathering_members_user_id");
+
+                    b.ToTable("gathering_members", (string)null);
+                });
+
+            modelBuilder.Entity("ChessApp.Backend.Models.JoinRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ApprovedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_by_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("GatheringId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("gathering_id");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("message");
+
+                    b.Property<Guid>("RequesterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requester_id");
+
+                    b.Property<DateTime?>("RespondedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("responded_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_join_requests");
+
+                    b.HasIndex("GatheringId")
+                        .HasDatabaseName("ix_join_requests_gathering_id");
+
+                    b.HasIndex("RequesterId")
+                        .HasDatabaseName("ix_join_requests_requester_id");
+
+                    b.HasIndex("GatheringId", "RequesterId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_join_requests_gathering_id_requester_id")
+                        .HasFilter("status = 'pending'");
+
+                    b.ToTable("join_requests", (string)null);
+                });
+
+            modelBuilder.Entity("ChessApp.Backend.Models.JoinRequestRejection", b =>
+                {
+                    b.Property<Guid>("JoinRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("join_request_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("JoinRequestId", "UserId")
+                        .HasName("pk_join_request_rejections");
+
+                    b.ToTable("join_request_rejections", (string)null);
+                });
+
             modelBuilder.Entity("ChessApp.Backend.Models.LinkedAccount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -165,159 +350,6 @@ namespace ChessApp.Backend.Migrations
                         .HasDatabaseName("ix_linked_accounts_user_id_platform");
 
                     b.ToTable("linked_accounts", (string)null);
-                });
-
-            modelBuilder.Entity("ChessApp.Backend.Models.Match", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("NOW()");
-
-                    b.Property<Point>("Location")
-                        .HasColumnType("geography (point, 4326)")
-                        .HasColumnName("location");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("text")
-                        .HasColumnName("notes");
-
-                    b.Property<string>("Outcome")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("outcome");
-
-                    b.Property<string>("Pgn")
-                        .HasColumnType("text")
-                        .HasColumnName("pgn");
-
-                    b.Property<DateTime>("PlayedAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("played_at");
-
-                    b.Property<bool?>("PlayedWithBoard")
-                        .HasColumnType("boolean")
-                        .HasColumnName("played_with_board");
-
-                    b.Property<Guid>("Player1Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("player1id");
-
-                    b.Property<Guid>("Player2Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("player2id");
-
-                    b.Property<Guid?>("ProposalId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("proposal_id");
-
-                    b.Property<string>("TimeControl")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("time_control");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("updated_at")
-                        .HasDefaultValueSql("NOW()");
-
-                    b.HasKey("Id")
-                        .HasName("pk_matches");
-
-                    b.HasIndex("PlayedAt")
-                        .HasDatabaseName("ix_matches_played_at");
-
-                    b.HasIndex("Player1Id")
-                        .HasDatabaseName("ix_matches_player1id");
-
-                    b.HasIndex("Player2Id")
-                        .HasDatabaseName("ix_matches_player2id");
-
-                    b.ToTable("matches", (string)null);
-                });
-
-            modelBuilder.Entity("ChessApp.Backend.Models.Proposal", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("NOW()");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("expires_at");
-
-                    b.Property<Guid?>("MatchId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("match_id");
-
-                    b.Property<Point>("MeetingLocation")
-                        .HasColumnType("geography (point, 4326)")
-                        .HasColumnName("meeting_location");
-
-                    b.Property<string>("Message")
-                        .HasColumnType("text")
-                        .HasColumnName("message");
-
-                    b.Property<Guid>("ProposerId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("proposer_id");
-
-                    b.Property<Guid>("ReceiverId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("receiver_id");
-
-                    b.Property<DateTime?>("RespondedAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("responded_at");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("status");
-
-                    b.HasKey("Id")
-                        .HasName("pk_proposals");
-
-                    b.HasIndex("ExpiresAt")
-                        .HasDatabaseName("ix_proposals_expires_at");
-
-                    b.HasIndex("MatchId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_proposals_match_id");
-
-                    b.HasIndex("MeetingLocation")
-                        .HasDatabaseName("ix_proposals_meeting_location");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("MeetingLocation"), "GIST");
-
-                    b.HasIndex("ProposerId")
-                        .HasDatabaseName("ix_proposals_proposer_id");
-
-                    b.HasIndex("Status")
-                        .HasDatabaseName("ix_proposals_status");
-
-                    b.HasIndex("ReceiverId", "Status")
-                        .HasDatabaseName("ix_proposals_receiver_id_status")
-                        .HasFilter("status = 'pending'");
-
-                    b.ToTable("proposals", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_different_users", "proposer_id != receiver_id");
-                        });
                 });
 
             modelBuilder.Entity("ChessApp.Backend.Models.RatingSnapshot", b =>
@@ -420,13 +452,13 @@ namespace ChessApp.Backend.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("NOW()");
 
-                    b.Property<Guid>("MatchId")
+                    b.Property<Guid>("GatheringId")
                         .HasColumnType("uuid")
-                        .HasColumnName("match_id");
+                        .HasColumnName("gathering_id");
 
-                    b.Property<int>("Rating")
-                        .HasColumnType("integer")
-                        .HasColumnName("rating");
+                    b.Property<bool>("NoShow")
+                        .HasColumnType("boolean")
+                        .HasColumnName("no_show");
 
                     b.Property<Guid>("RevieweeId")
                         .HasColumnType("uuid")
@@ -435,6 +467,12 @@ namespace ChessApp.Backend.Migrations
                     b.Property<Guid>("ReviewerId")
                         .HasColumnType("uuid")
                         .HasColumnName("reviewer_id");
+
+                    b.Property<string>("Tags")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("tags");
 
                     b.HasKey("Id")
                         .HasName("pk_reviews");
@@ -445,15 +483,13 @@ namespace ChessApp.Backend.Migrations
                     b.HasIndex("ReviewerId")
                         .HasDatabaseName("ix_reviews_reviewer_id");
 
-                    b.HasIndex("MatchId", "ReviewerId")
+                    b.HasIndex("GatheringId", "ReviewerId", "RevieweeId")
                         .IsUnique()
-                        .HasDatabaseName("ix_reviews_match_id_reviewer_id");
+                        .HasDatabaseName("ix_reviews_gathering_id_reviewer_id_reviewee_id");
 
                     b.ToTable("reviews", null, t =>
                         {
                             t.HasCheckConstraint("ck_different_users", "reviewer_id != reviewee_id");
-
-                            t.HasCheckConstraint("ck_rating_range", "rating >= 1 AND rating <= 5");
                         });
                 });
 
@@ -609,57 +645,6 @@ namespace ChessApp.Backend.Migrations
                     b.ToTable("users", (string)null);
                 });
 
-            modelBuilder.Entity("ChessApp.Backend.Models.UserStats", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<int?>("AvgOpponentRating")
-                        .HasColumnType("integer")
-                        .HasColumnName("avg_opponent_rating");
-
-                    b.Property<DateTime>("LastStatsUpdate")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("last_stats_update")
-                        .HasDefaultValueSql("NOW()");
-
-                    b.Property<int>("LongestStreak")
-                        .HasColumnType("integer")
-                        .HasColumnName("longest_streak");
-
-                    b.Property<int>("TotalDraws")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_draws");
-
-                    b.Property<int>("TotalLosses")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_losses");
-
-                    b.Property<int>("TotalMatchesPlayed")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_matches_played");
-
-                    b.Property<int>("TotalWins")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_wins");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_user_stats");
-
-                    b.HasIndex("UserId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_user_stats_user_id");
-
-                    b.ToTable("user_stats", (string)null);
-                });
-
             modelBuilder.Entity("ChessApp.Backend.Models.Block", b =>
                 {
                     b.HasOne("ChessApp.Backend.Models.User", "Blocked")
@@ -681,6 +666,72 @@ namespace ChessApp.Backend.Migrations
                     b.Navigation("Blocker");
                 });
 
+            modelBuilder.Entity("ChessApp.Backend.Models.Gathering", b =>
+                {
+                    b.HasOne("ChessApp.Backend.Models.User", "Host")
+                        .WithMany()
+                        .HasForeignKey("HostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_gatherings_users_host_id");
+
+                    b.Navigation("Host");
+                });
+
+            modelBuilder.Entity("ChessApp.Backend.Models.GatheringMember", b =>
+                {
+                    b.HasOne("ChessApp.Backend.Models.Gathering", "Gathering")
+                        .WithMany("Members")
+                        .HasForeignKey("GatheringId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_gathering_members_gatherings_gathering_id");
+
+                    b.HasOne("ChessApp.Backend.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_gathering_members_users_user_id");
+
+                    b.Navigation("Gathering");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ChessApp.Backend.Models.JoinRequest", b =>
+                {
+                    b.HasOne("ChessApp.Backend.Models.Gathering", "Gathering")
+                        .WithMany("JoinRequests")
+                        .HasForeignKey("GatheringId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_join_requests_gatherings_gathering_id");
+
+                    b.HasOne("ChessApp.Backend.Models.User", "Requester")
+                        .WithMany()
+                        .HasForeignKey("RequesterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_join_requests_users_requester_id");
+
+                    b.Navigation("Gathering");
+
+                    b.Navigation("Requester");
+                });
+
+            modelBuilder.Entity("ChessApp.Backend.Models.JoinRequestRejection", b =>
+                {
+                    b.HasOne("ChessApp.Backend.Models.JoinRequest", "JoinRequest")
+                        .WithMany("Rejections")
+                        .HasForeignKey("JoinRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_join_request_rejections_join_requests_join_request_id");
+
+                    b.Navigation("JoinRequest");
+                });
+
             modelBuilder.Entity("ChessApp.Backend.Models.LinkedAccount", b =>
                 {
                     b.HasOne("ChessApp.Backend.Models.User", "User")
@@ -691,56 +742,6 @@ namespace ChessApp.Backend.Migrations
                         .HasConstraintName("fk_linked_accounts_users_user_id");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("ChessApp.Backend.Models.Match", b =>
-                {
-                    b.HasOne("ChessApp.Backend.Models.User", "Player1")
-                        .WithMany("MatchesAsPlayer1")
-                        .HasForeignKey("Player1Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_matches_users_player1id");
-
-                    b.HasOne("ChessApp.Backend.Models.User", "Player2")
-                        .WithMany("MatchesAsPlayer2")
-                        .HasForeignKey("Player2Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_matches_users_player2id");
-
-                    b.Navigation("Player1");
-
-                    b.Navigation("Player2");
-                });
-
-            modelBuilder.Entity("ChessApp.Backend.Models.Proposal", b =>
-                {
-                    b.HasOne("ChessApp.Backend.Models.Match", "Match")
-                        .WithOne("Proposal")
-                        .HasForeignKey("ChessApp.Backend.Models.Proposal", "MatchId")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_proposals_matches_match_id");
-
-                    b.HasOne("ChessApp.Backend.Models.User", "Proposer")
-                        .WithMany("ProposalsSent")
-                        .HasForeignKey("ProposerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_proposals_users_proposer_id");
-
-                    b.HasOne("ChessApp.Backend.Models.User", "Receiver")
-                        .WithMany("ProposalsReceived")
-                        .HasForeignKey("ReceiverId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_proposals_users_receiver_id");
-
-                    b.Navigation("Match");
-
-                    b.Navigation("Proposer");
-
-                    b.Navigation("Receiver");
                 });
 
             modelBuilder.Entity("ChessApp.Backend.Models.RatingSnapshot", b =>
@@ -769,12 +770,12 @@ namespace ChessApp.Backend.Migrations
 
             modelBuilder.Entity("ChessApp.Backend.Models.Review", b =>
                 {
-                    b.HasOne("ChessApp.Backend.Models.Match", "Match")
-                        .WithMany("Reviews")
-                        .HasForeignKey("MatchId")
+                    b.HasOne("ChessApp.Backend.Models.Gathering", "Gathering")
+                        .WithMany()
+                        .HasForeignKey("GatheringId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_reviews_matches_match_id");
+                        .HasConstraintName("fk_reviews_gatherings_gathering_id");
 
                     b.HasOne("ChessApp.Backend.Models.User", "Reviewee")
                         .WithMany("ReviewsReceived")
@@ -790,30 +791,23 @@ namespace ChessApp.Backend.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_reviews_users_reviewer_id");
 
-                    b.Navigation("Match");
+                    b.Navigation("Gathering");
 
                     b.Navigation("Reviewee");
 
                     b.Navigation("Reviewer");
                 });
 
-            modelBuilder.Entity("ChessApp.Backend.Models.UserStats", b =>
+            modelBuilder.Entity("ChessApp.Backend.Models.Gathering", b =>
                 {
-                    b.HasOne("ChessApp.Backend.Models.User", "User")
-                        .WithOne("Stats")
-                        .HasForeignKey("ChessApp.Backend.Models.UserStats", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_user_stats_users_user_id");
+                    b.Navigation("JoinRequests");
 
-                    b.Navigation("User");
+                    b.Navigation("Members");
                 });
 
-            modelBuilder.Entity("ChessApp.Backend.Models.Match", b =>
+            modelBuilder.Entity("ChessApp.Backend.Models.JoinRequest", b =>
                 {
-                    b.Navigation("Proposal");
-
-                    b.Navigation("Reviews");
+                    b.Navigation("Rejections");
                 });
 
             modelBuilder.Entity("ChessApp.Backend.Models.User", b =>
@@ -824,14 +818,6 @@ namespace ChessApp.Backend.Migrations
 
                     b.Navigation("LinkedAccounts");
 
-                    b.Navigation("MatchesAsPlayer1");
-
-                    b.Navigation("MatchesAsPlayer2");
-
-                    b.Navigation("ProposalsReceived");
-
-                    b.Navigation("ProposalsSent");
-
                     b.Navigation("RatingSnapshots");
 
                     b.Navigation("RefreshTokens");
@@ -839,8 +825,6 @@ namespace ChessApp.Backend.Migrations
                     b.Navigation("ReviewsGiven");
 
                     b.Navigation("ReviewsReceived");
-
-                    b.Navigation("Stats");
                 });
 #pragma warning restore 612, 618
         }

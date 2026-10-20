@@ -97,10 +97,10 @@ builder.Services.AddAuthorization();
 // Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IProposalService, ProposalService>();
-builder.Services.AddScoped<IMatchService, MatchService>();
 builder.Services.AddScoped<IBlockService, BlockService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
+builder.Services.AddScoped<IGatheringService, GatheringService>();
+builder.Services.AddSingleton<IGatheringNotifier, HubGatheringNotifier>();
 
 // Lichess account linking (OAuth PKCE)
 builder.Services.Configure<LichessOptions>(builder.Configuration.GetSection("Lichess"));
@@ -127,6 +127,7 @@ builder.Services.AddScoped<IChessComIntegrationService, ChessComIntegrationServi
 
 // Periodic rating refresh for all linked accounts
 builder.Services.AddHostedService<LinkedAccountSyncWorker>();
+builder.Services.AddHostedService<GatheringMaintenanceWorker>();
 
 // Photo storage: local disk in Development (free, no signup needed),
 // an S3-compatible provider (Cloudflare R2, Backblaze B2, AWS S3, ...)

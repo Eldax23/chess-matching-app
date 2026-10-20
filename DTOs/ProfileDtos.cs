@@ -17,16 +17,6 @@ public class ChessRatingDto
     public int? Rating { get; set; }
 }
 
-public class UserStatsDto
-{
-    public int TotalMatchesPlayed { get; set; }
-    public int TotalWins { get; set; }
-    public int TotalLosses { get; set; }
-    public int TotalDraws { get; set; }
-    public int WinRate { get; set; }
-    public int? AvgOpponentRating { get; set; }
-}
-
 public class UserProfileResponse
 {
     public Guid Id { get; set; }
@@ -49,8 +39,6 @@ public class UserProfileResponse
     // Verified platform accounts with per-time-control ratings
     public List<LinkedAccountDto> LinkedAccounts { get; set; } = new();
 
-    public UserStatsDto? Stats { get; set; }
-
     public DateTime CreatedAt { get; set; }
     public DateTime? LastLogin { get; set; }
 }
@@ -69,6 +57,4 @@ public class UserPublicProfileResponse
     public int? LichessRating { get; set; }
 
     public List<LinkedAccountDto> LinkedAccounts { get; set; } = new();
-
-    public UserStatsDto? Stats { get; set; }
 }

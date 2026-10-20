@@ -37,8 +37,6 @@ public class NearbyUserDto
 
     public bool HasBoard { get; set; }
     public decimal DistanceKm { get; set; }
-
-    public UserStatsDto? Stats { get; set; }
 }
 
 public class NearbyUsersResponse
