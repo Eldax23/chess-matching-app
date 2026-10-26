@@ -61,9 +61,10 @@ public class LichessAuthException : Exception
 
 public interface ILichessClient
 {
-    string BuildAuthorizeUrl(string state, string codeChallenge);
+    string BuildAuthorizeUrl(string state, string codeChallenge, string? scope = null);
     Task<string> ExchangeCodeAsync(string code, string codeVerifier, CancellationToken ct = default);
     Task<LichessUser> GetAccountAsync(string accessToken, CancellationToken ct = default);
+    Task<string?> GetEmailAsync(string accessToken, CancellationToken ct = default);
     Task RevokeTokenAsync(string accessToken, CancellationToken ct = default);
     Task<LichessUser?> GetUserAsync(string id, CancellationToken ct = default);
     Task<List<LichessUser>> GetUsersAsync(IReadOnlyCollection<string> ids, CancellationToken ct = default);
@@ -83,10 +84,10 @@ public class LichessClient : ILichessClient
         _options = options.Value;
     }
 
-    public string BuildAuthorizeUrl(string state, string codeChallenge)
+    public string BuildAuthorizeUrl(string state, string codeChallenge, string? scope = null)
     {
-        // No scope requested: identity (GET /api/account) is all we need
-        return QueryHelpers.AddQueryString($"{_options.BaseUrl}/oauth", new Dictionary<string, string?>
+        // Identity (GET /api/account) needs no scope; sign-in adds email:read
+        var query = new Dictionary<string, string?>
         {
             ["response_type"] = "code",
             ["client_id"] = _options.ClientId,
@@ -94,7 +95,10 @@ public class LichessClient : ILichessClient
             ["code_challenge_method"] = "S256",
             ["code_challenge"] = codeChallenge,
             ["state"] = state,
-        });
+        };
+        if (scope != null)
+            query["scope"] = scope;
+        return QueryHelpers.AddQueryString($"{_options.BaseUrl}/oauth", query);
     }
 
     public async Task<string> ExchangeCodeAsync(string code, string codeVerifier, CancellationToken ct = default)
@@ -134,6 +138,19 @@ public class LichessClient : ILichessClient
             ?? throw new LichessAuthException("Lichess returned an empty account.");
     }
 
+    public async Task<string?> GetEmailAsync(string accessToken, CancellationToken ct = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/email");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        using var response = await _http.SendAsync(request, ct);
+        // Missing scope or no email on file: carry on without one
+        if (!response.IsSuccessStatusCode)
+            return null;
+        var body = await response.Content.ReadFromJsonAsync<EmailResponse>(ct);
+        return string.IsNullOrWhiteSpace(body?.Email) ? null : body.Email;
+    }
+
     public async Task RevokeTokenAsync(string accessToken, CancellationToken ct = default)
     {
         using var request = new HttpRequestMessage(HttpMethod.Delete, "/api/token");
@@ -161,6 +178,11 @@ public class LichessClient : ILichessClient
         using var response = await _http.PostAsync("/api/users", body, ct);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<List<LichessUser>>(ct) ?? new();
+    }
+
+    private class EmailResponse
+    {
+        public string? Email { get; set; }
     }
 
     private class TokenResponse

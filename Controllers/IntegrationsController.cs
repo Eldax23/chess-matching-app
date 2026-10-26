@@ -93,10 +93,18 @@ public class IntegrationsController : ControllerBase
     /// </summary>
     [HttpDelete("lichess")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> UnlinkLichess(CancellationToken ct)
     {
-        await _lichess.UnlinkAsync(GetUserId(), ct);
-        return NoContent();
+        try
+        {
+            await _lichess.UnlinkAsync(GetUserId(), ct);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new ErrorResponse { Error = "LichessRequired", Message = ex.Message });
+        }
     }
 
     // =====================================================
