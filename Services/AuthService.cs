@@ -17,6 +17,9 @@ public interface IAuthService
     
     Task<(User user, string accessToken, string refreshToken)> LoginAsync(string email, string password);
     
+    // For a player already identified another way (Sign in with Lichess)
+    Task<(string accessToken, string refreshToken)> IssueTokensAsync(User user);
+
     Task<string> RefreshAccessTokenAsync(string refreshToken);
     
     Task RevokeRefreshTokenAsync(string refreshToken);
@@ -82,7 +85,8 @@ public class AuthService : IAuthService
         var user = await _dbContext.Users
             .FirstOrDefaultAsync(u => u.Email == email.ToLower());
 
-        if (user == null || !VerifyPassword(password, user.PasswordHash))
+        // An empty hash means the player signed up with Lichess and has no password
+        if (user == null || string.IsNullOrEmpty(user.PasswordHash) || !VerifyPassword(password, user.PasswordHash))
         {
             throw new UnauthorizedAccessException("Invalid email or password");
         }
@@ -102,6 +106,21 @@ public class AuthService : IAuthService
         var refreshToken = await GenerateRefreshTokenAsync(user.Id);
 
         return (user, accessToken, refreshToken);
+    }
+
+    public async Task<(string accessToken, string refreshToken)> IssueTokensAsync(User user)
+    {
+        if (!user.IsActive)
+        {
+            throw new UnauthorizedAccessException("User account is inactive");
+        }
+
+        user.LastLogin = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        var accessToken = GenerateAccessToken(user);
+        var refreshToken = await GenerateRefreshTokenAsync(user.Id);
+        return (accessToken, refreshToken);
     }
 
     public async Task<string> RefreshAccessTokenAsync(string refreshToken)
