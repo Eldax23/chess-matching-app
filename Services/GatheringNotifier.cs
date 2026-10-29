@@ -13,6 +13,8 @@ public interface IGatheringNotifier
 
     Task JoinRequestResolvedAsync(Guid requesterId, JoinRequestResolvedPayload payload);
 
+    Task MemberJoinedAsync(IEnumerable<Guid> memberIds, MemberJoinedPayload payload);
+
     Task GatheringUpdatedAsync(IEnumerable<Guid> memberIds, GatheringUpdatedPayload payload);
 }
 
@@ -32,6 +34,9 @@ public class HubGatheringNotifier : IGatheringNotifier
 
     public Task JoinRequestResolvedAsync(Guid requesterId, JoinRequestResolvedPayload payload) =>
         SendAsync(new[] { requesterId }, "JoinRequestResolved", payload);
+
+    public Task MemberJoinedAsync(IEnumerable<Guid> memberIds, MemberJoinedPayload payload) =>
+        SendAsync(memberIds, "MemberJoined", payload);
 
     public Task GatheringUpdatedAsync(IEnumerable<Guid> memberIds, GatheringUpdatedPayload payload) =>
         SendAsync(memberIds, "GatheringUpdated", payload);

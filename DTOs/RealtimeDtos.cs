@@ -34,6 +34,14 @@ public class JoinRequestResolvedPayload
     public string Status { get; set; } = null!;
 }
 
+public class MemberJoinedPayload
+{
+    public Guid GatheringId { get; set; }
+    public string VenueName { get; set; } = null!;
+    public GatheringPersonDto Member { get; set; } = null!;
+    public int MemberCount { get; set; }
+}
+
 public class GatheringUpdatedPayload
 {
     public Guid GatheringId { get; set; }

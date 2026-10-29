@@ -29,6 +29,12 @@ public class GatheringServiceTests
             return Task.CompletedTask;
         }
 
+        public Task MemberJoinedAsync(IEnumerable<Guid> memberIds, MemberJoinedPayload payload)
+        {
+            Sent.AddRange(memberIds.Select(id => (id, $"MemberJoined:{payload.Member.Username}")));
+            return Task.CompletedTask;
+        }
+
         public Task GatheringUpdatedAsync(IEnumerable<Guid> memberIds, GatheringUpdatedPayload payload)
         {
             Sent.AddRange(memberIds.Select(id => (id, "GatheringUpdated")));
@@ -126,6 +132,25 @@ public class GatheringServiceTests
         Assert.Equal("gathered", seen.Status);
         Assert.Equal(3, seen.MemberCount);
         Assert.Equal("Cafe Riche", seen.VenueName);
+    }
+
+    [Fact]
+    public async Task Approval_TellsTheOtherMembersWhoJoined()
+    {
+        var host = await AddUserAsync("host");
+        var friend = await AddUserAsync("friend");
+        var newcomer = await AddUserAsync("newcomer");
+        var gathering = await _service.CreateAsync(host.Id, Tonight());
+
+        var first = await _service.RequestToJoinAsync(gathering.Id, friend.Id, new JoinGatheringRequest());
+        await _service.ApproveAsync(first.Id, host.Id);
+        var request = await _service.RequestToJoinAsync(gathering.Id, newcomer.Id, new JoinGatheringRequest());
+        _notifier.Sent.Clear();
+
+        await _service.ApproveAsync(request.Id, friend.Id);
+
+        var joined = _notifier.Sent.Where(s => s.Event.StartsWith("MemberJoined")).ToList();
+        Assert.Equal(new[] { (host.Id, "MemberJoined:newcomer") }, joined);
     }
 
     [Fact]

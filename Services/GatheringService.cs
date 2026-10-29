@@ -314,6 +314,17 @@ public class GatheringService : IGatheringService
             GatheringId = gathering.Id,
             Status = FormatStatus(joinRequest.Status)
         });
+        // Tell the rest of the gathering who's coming; the approver and the
+        // newcomer already know
+        await _notifier.MemberJoinedAsync(
+            gathering.Members.Select(m => m.UserId).Where(id => id != requesterId && id != userId),
+            new MemberJoinedPayload
+            {
+                GatheringId = gathering.Id,
+                VenueName = gathering.VenueName,
+                Member = MapToPerson(joinRequest.Requester),
+                MemberCount = gathering.Members.Count
+            });
         await NotifyGatheringUpdatedAsync(gathering);
 
         return MapToDto(joinRequest);
