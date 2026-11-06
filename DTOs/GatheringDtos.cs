@@ -8,11 +8,13 @@ public class CreateGatheringRequest
     public DateTime StartsAt { get; set; }
     public DateTime EndsAt { get; set; }
     public string? Note { get; set; }
+    public bool HasBoard { get; set; }
 }
 
 public class JoinGatheringRequest
 {
     public string? Message { get; set; }
+    public bool HasBoard { get; set; }
 }
 
 /// <summary>

@@ -80,7 +80,13 @@ public class GatheringService : IGatheringService
             CreatedAt = now,
             UpdatedAt = now
         };
-        gathering.Members.Add(new GatheringMember { GatheringId = gathering.Id, UserId = hostId, JoinedAt = now });
+        gathering.Members.Add(new GatheringMember
+        {
+            GatheringId = gathering.Id,
+            UserId = hostId,
+            HasBoard = request.HasBoard,
+            JoinedAt = now
+        });
 
         _dbContext.Gatherings.Add(gathering);
         await _dbContext.SaveChangesAsync();
@@ -213,6 +219,7 @@ public class GatheringService : IGatheringService
             GatheringId = gatheringId,
             RequesterId = userId,
             Message = request.Message,
+            HasBoard = request.HasBoard,
             Status = JoinRequestStatus.Pending,
             ExpiresAt = Min(now + JoinRequestLifetime, gathering.EndsAt),
             CreatedAt = now
@@ -297,7 +304,13 @@ public class GatheringService : IGatheringService
         joinRequest.ApprovedById = userId;
         joinRequest.RespondedAt = now;
 
-        gathering.Members.Add(new GatheringMember { GatheringId = gathering.Id, UserId = requesterId, JoinedAt = now });
+        gathering.Members.Add(new GatheringMember
+        {
+            GatheringId = gathering.Id,
+            UserId = requesterId,
+            HasBoard = joinRequest.HasBoard,
+            JoinedAt = now
+        });
         gathering.Status = GatheringStatus.Gathered;
         gathering.UpdatedAt = now;
 
@@ -618,7 +631,9 @@ public class GatheringService : IGatheringService
         return new GatheringDto
         {
             Id = gathering.Id,
-            Host = MapToPerson(gathering.Host),
+            Host = MapToPerson(
+                gathering.Host,
+                gathering.Members.FirstOrDefault(m => m.UserId == gathering.HostId)?.HasBoard ?? false),
             Status = FormatStatus(gathering.Status),
             StartsAt = gathering.StartsAt,
             EndsAt = gathering.EndsAt,
@@ -636,7 +651,7 @@ public class GatheringService : IGatheringService
             DistanceKm = viewerLocation != null ? RoundedDistance(viewerLocation, gathering.Location) : null,
             Members = gathering.Members
                 .OrderBy(m => m.JoinedAt)
-                .Select(m => MapToPerson(m.User))
+                .Select(m => MapToPerson(m.User, m.HasBoard))
                 .ToList(),
             IsMember = isMember,
             IsHost = gathering.HostId == viewerId,
@@ -658,20 +673,21 @@ public class GatheringService : IGatheringService
     {
         Id = request.Id,
         GatheringId = request.GatheringId,
-        Requester = MapToPerson(request.Requester),
+        Requester = MapToPerson(request.Requester, request.HasBoard),
         Message = request.Message,
         Status = FormatStatus(request.Status),
         ExpiresAt = request.ExpiresAt,
         CreatedAt = request.CreatedAt
     };
 
-    private static GatheringPersonDto MapToPerson(User user) => new()
+    // hasBoard is what they said for this gathering, not their profile
+    private static GatheringPersonDto MapToPerson(User user, bool hasBoard) => new()
     {
         Id = user.Id,
         Username = user.Username,
         FullName = user.FullName,
         PhotoUrl = user.PhotoUrl,
-        HasBoard = user.HasBoard,
+        HasBoard = hasBoard,
         FideRating = user.FideRating,
         ChessComRating = user.ChessComRating,
         LichessRating = user.LichessRating

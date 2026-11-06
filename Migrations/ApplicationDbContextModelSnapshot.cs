@@ -155,6 +155,10 @@ namespace ChessApp.Backend.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
+                    b.Property<bool>("HasBoard")
+                        .HasColumnType("boolean")
+                        .HasColumnName("has_board");
+
                     b.Property<DateTime>("JoinedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp without time zone")
@@ -194,6 +198,10 @@ namespace ChessApp.Backend.Migrations
                     b.Property<Guid>("GatheringId")
                         .HasColumnType("uuid")
                         .HasColumnName("gathering_id");
+
+                    b.Property<bool>("HasBoard")
+                        .HasColumnType("boolean")
+                        .HasColumnName("has_board");
 
                     b.Property<string>("Message")
                         .HasMaxLength(500)

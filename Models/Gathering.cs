@@ -43,6 +43,10 @@ public class GatheringMember
     public Guid UserId { get; set; }
     public virtual User User { get; set; } = null!;
 
+    // Whether they're bringing a board to this gathering. It's per gathering,
+    // since people don't always have theirs with them.
+    public bool HasBoard { get; set; }
+
     public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
 }
 
@@ -62,6 +66,9 @@ public class JoinRequest
     public virtual User Requester { get; set; } = null!;
 
     public string? Message { get; set; }
+
+    // Whether they'd bring a board; carried onto their membership when approved
+    public bool HasBoard { get; set; }
 
     public JoinRequestStatus Status { get; set; } = JoinRequestStatus.Pending;
     public DateTime ExpiresAt { get; set; }

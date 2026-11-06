@@ -88,6 +88,47 @@ public class GatheringServiceTests
     }
 
     [Fact]
+    public async Task Board_IsWhatEachPersonSaidForThisGathering_NotTheirProfile()
+    {
+        var host = await AddUserAsync("host");
+        var guest = await AddUserAsync("guest");
+        guest.HasBoard = true; // the profile says yes, but they aren't bringing it this time
+        await _db.SaveChangesAsync();
+
+        var request = Tonight();
+        request.HasBoard = true;
+        var gathering = await _service.CreateAsync(host.Id, request);
+        Assert.True(gathering.Host.HasBoard);
+        Assert.True(Assert.Single(gathering.Members).HasBoard);
+
+        var join = await _service.RequestToJoinAsync(
+            gathering.Id, guest.Id, new JoinGatheringRequest { HasBoard = false });
+        Assert.False(join.Requester.HasBoard);
+        await _service.ApproveAsync(join.Id, host.Id);
+
+        var seen = await _service.GetAsync(gathering.Id, host.Id);
+        Assert.True(seen.Members.Single(m => m.Id == host.Id).HasBoard);
+        Assert.False(seen.Members.Single(m => m.Id == guest.Id).HasBoard);
+    }
+
+    [Fact]
+    public async Task JoinRequest_KeepsTheBoard_OnceApproved()
+    {
+        var host = await AddUserAsync("host");
+        var guest = await AddUserAsync("guest");
+        var gathering = await _service.CreateAsync(host.Id, Tonight());
+        Assert.False(gathering.Host.HasBoard);
+
+        var join = await _service.RequestToJoinAsync(
+            gathering.Id, guest.Id, new JoinGatheringRequest { HasBoard = true });
+        Assert.True(join.Requester.HasBoard);
+        await _service.ApproveAsync(join.Id, host.Id);
+
+        var seen = await _service.GetAsync(gathering.Id, guest.Id);
+        Assert.True(seen.Members.Single(m => m.Id == guest.Id).HasBoard);
+    }
+
+    [Fact]
     public async Task NonMembers_SeeOnlyApproximateLocation()
     {
         var host = await AddUserAsync("host");
