@@ -4,7 +4,6 @@ public class UpdateProfileRequest
 {
     public string? FullName { get; set; }
     public string? Bio { get; set; }
-    public bool? HasBoard { get; set; }
     public string? FideId { get; set; }
     public int? FideRating { get; set; }
     // Lichess and chess.com are linked via IntegrationsController
@@ -28,7 +27,6 @@ public class UserProfileResponse
 
     public bool IsAvailable { get; set; }
     public DateTime? AvailabilityExpiresAt { get; set; }
-    public bool HasBoard { get; set; }
 
     public string? FideId { get; set; }
     public int? FideRating { get; set; }

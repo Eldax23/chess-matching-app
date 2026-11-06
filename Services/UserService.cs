@@ -91,9 +91,6 @@ public class UserService : IUserService
         if (!string.IsNullOrEmpty(request.Bio))
             user.Bio = request.Bio;
 
-        if (request.HasBoard.HasValue)
-            user.HasBoard = request.HasBoard.Value;
-
         if (!string.IsNullOrEmpty(request.FideId))
             user.FideId = request.FideId;
 
@@ -263,7 +260,6 @@ public class UserService : IUserService
             Bio = user.Bio,
             IsAvailable = user.IsAvailable,
             AvailabilityExpiresAt = user.AvailabilityExpiresAt,
-            HasBoard = user.HasBoard,
             FideId = user.FideId,
             FideRating = user.FideRating,
             ChessCom = user.ChessComUsername != null ? new ChessRatingDto
