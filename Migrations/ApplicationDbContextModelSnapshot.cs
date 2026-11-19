@@ -155,6 +155,14 @@ namespace ChessApp.Backend.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
+                    b.Property<DateTime?>("ChatDeliveredUpTo")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("chat_delivered_up_to");
+
+                    b.Property<DateTime?>("ChatReadUpTo")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("chat_read_up_to");
+
                     b.Property<DateTime>("JoinedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp without time zone")
@@ -168,6 +176,45 @@ namespace ChessApp.Backend.Migrations
                         .HasDatabaseName("ix_gathering_members_user_id");
 
                     b.ToTable("gathering_members", (string)null);
+                });
+
+            modelBuilder.Entity("ChessApp.Backend.Models.GatheringMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<Guid>("GatheringId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("gathering_id");
+
+                    b.Property<Guid>("SenderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sender_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_gathering_messages");
+
+                    b.HasIndex("SenderId")
+                        .HasDatabaseName("ix_gathering_messages_sender_id");
+
+                    b.HasIndex("GatheringId", "CreatedAt")
+                        .HasDatabaseName("ix_gathering_messages_gathering_id_created_at");
+
+                    b.ToTable("gathering_messages", (string)null);
                 });
 
             modelBuilder.Entity("ChessApp.Backend.Models.JoinRequest", b =>
@@ -697,6 +744,27 @@ namespace ChessApp.Backend.Migrations
                     b.Navigation("Gathering");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ChessApp.Backend.Models.GatheringMessage", b =>
+                {
+                    b.HasOne("ChessApp.Backend.Models.Gathering", "Gathering")
+                        .WithMany()
+                        .HasForeignKey("GatheringId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_gathering_messages_gatherings_gathering_id");
+
+                    b.HasOne("ChessApp.Backend.Models.User", "Sender")
+                        .WithMany()
+                        .HasForeignKey("SenderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_gathering_messages_users_sender_id");
+
+                    b.Navigation("Gathering");
+
+                    b.Navigation("Sender");
                 });
 
             modelBuilder.Entity("ChessApp.Backend.Models.JoinRequest", b =>

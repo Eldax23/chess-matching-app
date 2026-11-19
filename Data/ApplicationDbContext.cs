@@ -26,6 +26,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<GatheringMember> GatheringMembers { get; set; } = null!;
     public DbSet<JoinRequest> JoinRequests { get; set; } = null!;
     public DbSet<JoinRequestRejection> JoinRequestRejections { get; set; } = null!;
+    public DbSet<GatheringMessage> GatheringMessages { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -231,6 +232,29 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(e => e.JoinRequest)
                 .WithMany(r => r.Rejections)
                 .HasForeignKey(e => e.JoinRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GatheringMessage>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            // The chat loads newest first, a page at a time
+            entity.HasIndex(e => new { e.GatheringId, e.CreatedAt });
+
+            entity.Property(e => e.Body).HasMaxLength(1000).IsRequired();
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("NOW()");
+
+            entity.HasOne(e => e.Gathering)
+                .WithMany()
+                .HasForeignKey(e => e.GatheringId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Sender)
+                .WithMany()
+                .HasForeignKey(e => e.SenderId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

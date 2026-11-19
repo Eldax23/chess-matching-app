@@ -34,6 +34,15 @@ public interface IGatheringService
 
     Task CancelAsync(Guid gatheringId, Guid userId);
 
+    /// <summary>A page of a gathering's chat, oldest first. Members only.</summary>
+    Task<GatheringMessagesResponse> GetMessagesAsync(Guid gatheringId, Guid userId, DateTime? before, int limit = 50);
+
+    /// <summary>Posts to a gathering's chat. Members only, while the gathering is active.</summary>
+    Task<GatheringMessageDto> SendMessageAsync(Guid gatheringId, Guid userId, SendGatheringMessageRequest request);
+
+    /// <summary>Moves your delivered/read receipts forward and tells the other members.</summary>
+    Task UpdateChatReceiptAsync(Guid gatheringId, Guid userId, UpdateChatReceiptRequest request);
+
     /// <summary>Expires stale join requests and ends gatherings whose time window has passed.</summary>
     Task<int> ExpireStaleAsync();
 }
@@ -162,6 +171,13 @@ public class GatheringService : IGatheringService
                 .Where(r => r.GatheringId == gatheringId && r.ReviewerId == userId)
                 .Select(r => r.RevieweeId)
                 .ToListAsync();
+        }
+        if (isMember)
+        {
+            dto.LastMessageAt = await _dbContext.GatheringMessages
+                .Where(m => m.GatheringId == gatheringId)
+                .MaxAsync(m => (DateTime?)m.CreatedAt);
+            dto.MyChatReadUpTo = gathering.Members.First(m => m.UserId == userId).ChatReadUpTo;
         }
         return dto;
     }
@@ -438,6 +454,119 @@ public class GatheringService : IGatheringService
     }
 
     // =====================================================
+    // CHAT
+    // =====================================================
+
+    public async Task<GatheringMessagesResponse> GetMessagesAsync(Guid gatheringId, Guid userId, DateTime? before, int limit = 50)
+    {
+        var gathering = await LoadGatheringForMemberAsync(gatheringId, userId);
+
+        var query = _dbContext.GatheringMessages
+            .Include(m => m.Sender)
+            .Where(m => m.GatheringId == gatheringId);
+        if (before.HasValue)
+            query = query.Where(m => m.CreatedAt < before.Value);
+
+        // One extra row tells whether there are older messages
+        var page = await query
+            .OrderByDescending(m => m.CreatedAt)
+            .ThenByDescending(m => m.Id)
+            .Take(limit + 1)
+            .ToListAsync();
+
+        var hasMore = page.Count > limit;
+        return new GatheringMessagesResponse
+        {
+            Messages = page.Take(limit).Reverse().Select(MapToDto).ToList(),
+            HasMore = hasMore,
+            CanSend = CanChat(gathering, DateTime.UtcNow),
+            Receipts = gathering.Members
+                .OrderBy(m => m.JoinedAt)
+                .Select(m => new ChatReceiptDto
+                {
+                    Member = MapToPerson(m.User),
+                    DeliveredUpTo = m.ChatDeliveredUpTo,
+                    ReadUpTo = m.ChatReadUpTo
+                })
+                .ToList()
+        };
+    }
+
+    public async Task<GatheringMessageDto> SendMessageAsync(Guid gatheringId, Guid userId, SendGatheringMessageRequest request)
+    {
+        var gathering = await LoadGatheringForMemberAsync(gatheringId, userId);
+
+        var body = request.Body?.Trim();
+        if (string.IsNullOrEmpty(body))
+            throw new InvalidOperationException("Write a message first");
+
+        if (!CanChat(gathering, DateTime.UtcNow))
+            throw new InvalidOperationException("This gathering is over, so its chat is closed");
+
+        var message = new GatheringMessage
+        {
+            Id = Guid.NewGuid(),
+            GatheringId = gatheringId,
+            SenderId = userId,
+            Body = body,
+            // Postgres keeps microseconds; trim to that now so the time sent back
+            // and pushed to members matches what's stored, since clients pass it
+            // back as a paging cursor and as a receipt
+            CreatedAt = ToMicroseconds(DateTime.UtcNow)
+        };
+        _dbContext.GatheringMessages.Add(message);
+
+        // You've seen what you sent, so it never counts as unread for you
+        var sender = gathering.Members.First(m => m.UserId == userId);
+        sender.ChatDeliveredUpTo = Later(sender.ChatDeliveredUpTo, message.CreatedAt);
+        sender.ChatReadUpTo = Later(sender.ChatReadUpTo, message.CreatedAt);
+        await _dbContext.SaveChangesAsync();
+
+        message.Sender = sender.User;
+        var dto = MapToDto(message);
+
+        // Everyone in it, the sender included, so their other devices see it too
+        await _notifier.GatheringMessageReceivedAsync(
+            gathering.Members.Select(m => m.UserId),
+            new GatheringMessageReceivedPayload { Message = dto });
+
+        return dto;
+    }
+
+        public async Task UpdateChatReceiptAsync(Guid gatheringId, Guid userId, UpdateChatReceiptRequest request)
+    {
+        var gathering = await LoadGatheringForMemberAsync(gatheringId, userId);
+        var member = gathering.Members.First(m => m.UserId == userId);
+
+        // A receipt can't be ahead of the clock (it would mark future messages read)
+        var now = DateTime.UtcNow;
+        DateTime? Clamp(DateTime? at) => at.HasValue ? Min(at.Value.ToUniversalTime(), now) : null;
+        var read = Clamp(request.ReadUpTo);
+        var delivered = Clamp(request.DeliveredUpTo);
+        if (read.HasValue)
+            delivered = Later(delivered, read.Value);
+
+        var newDelivered = delivered.HasValue ? Later(member.ChatDeliveredUpTo, delivered.Value) : member.ChatDeliveredUpTo;
+        var newRead = read.HasValue ? Later(member.ChatReadUpTo, read.Value) : member.ChatReadUpTo;
+        if (newDelivered == member.ChatDeliveredUpTo && newRead == member.ChatReadUpTo)
+            return;
+
+        member.ChatDeliveredUpTo = newDelivered;
+        member.ChatReadUpTo = newRead;
+        await _dbContext.SaveChangesAsync();
+
+        await _notifier.GatheringChatReceiptAsync(
+            gathering.Members.Where(m => m.UserId != userId).Select(m => m.UserId),
+            new GatheringChatReceiptPayload
+            {
+                GatheringId = gatheringId,
+                UserId = userId,
+                DeliveredUpTo = newDelivered,
+                ReadUpTo = newRead
+            });
+    }
+
+    // =====================================================
     // HELPERS
     // =====================================================
 
@@ -477,6 +606,25 @@ public class GatheringService : IGatheringService
             .Include(g => g.Members)
             .FirstOrDefaultAsync(g => g.Id == gatheringId)
         ?? throw new KeyNotFoundException($"Gathering {gatheringId} not found");
+
+    // Non-members get a 404 rather than a 403, so the chat doesn't confirm a gathering exists
+    private async Task<Gathering> LoadGatheringForMemberAsync(Guid gatheringId, Guid userId)
+    {
+        var gathering = await _dbContext.Gatherings
+            .Include(g => g.Members)
+            .ThenInclude(m => m.User)
+            .FirstOrDefaultAsync(g => g.Id == gatheringId);
+
+        if (gathering == null || !gathering.Members.Any(m => m.UserId == userId))
+            throw new KeyNotFoundException($"Gathering {gatheringId} not found");
+
+        return gathering;
+    }
+
+    // The worker ends gatherings once their window passes, but it runs
+    // periodically, so check the window too
+    private static bool CanChat(Gathering gathering, DateTime now) =>
+        gathering.IsActive && gathering.EndsAt > now;
 
     private async Task<JoinRequest> LoadPendingRequestForMemberAsync(Guid requestId, Guid userId)
     {
@@ -608,6 +756,11 @@ public class GatheringService : IGatheringService
 
     private static DateTime Min(DateTime a, DateTime b) => a < b ? a : b;
 
+    private static DateTime ToMicroseconds(DateTime at) => new(at.Ticks - at.Ticks % 10, at.Kind);
+
+    private static DateTime Later(DateTime? current, DateTime candidate) =>
+        current.HasValue && current.Value >= candidate ? current.Value : candidate;
+
     private static string FormatStatus<T>(T status) where T : Enum => status.ToString().ToLowerInvariant();
 
     private static GatheringDto MapToDto(
@@ -663,6 +816,15 @@ public class GatheringService : IGatheringService
         Status = FormatStatus(request.Status),
         ExpiresAt = request.ExpiresAt,
         CreatedAt = request.CreatedAt
+    };
+
+    private static GatheringMessageDto MapToDto(GatheringMessage message) => new()
+    {
+        Id = message.Id,
+        GatheringId = message.GatheringId,
+        Sender = MapToPerson(message.Sender),
+        Body = message.Body,
+        CreatedAt = message.CreatedAt
     };
 
     private static GatheringPersonDto MapToPerson(User user) => new()

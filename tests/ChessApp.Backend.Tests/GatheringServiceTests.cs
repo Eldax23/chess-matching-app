@@ -34,6 +34,18 @@ public class GatheringServiceTests
             Sent.AddRange(memberIds.Select(id => (id, "GatheringUpdated")));
             return Task.CompletedTask;
         }
+
+        public Task GatheringMessageReceivedAsync(IEnumerable<Guid> memberIds, GatheringMessageReceivedPayload payload)
+        {
+            Sent.AddRange(memberIds.Select(id => (id, $"GatheringMessageReceived:{payload.Message.Body}")));
+            return Task.CompletedTask;
+        }
+
+        public Task GatheringChatReceiptAsync(IEnumerable<Guid> memberIds, GatheringChatReceiptPayload payload)
+        {
+            Sent.AddRange(memberIds.Select(id => (id, $"GatheringChatReceipt:{payload.UserId}")));
+            return Task.CompletedTask;
+        }
     }
 
     private readonly ApplicationDbContext _db;
@@ -330,5 +342,177 @@ public class GatheringServiceTests
         Assert.Equal(GatheringStatus.Ended, storedGathering.Status);
         Assert.Equal(JoinRequestStatus.Expired, storedRequest.Status);
         Assert.Contains((newcomer.Id, "JoinRequestResolved:expired"), _notifier.Sent);
+    }
+
+    // ===== CHAT =====
+
+    private async Task<(User Host, User Guest, GatheringDto Gathering)> GatheringWithGuestAsync()
+    {
+        var host = await AddUserAsync("host");
+        var guest = await AddUserAsync("guest");
+        var gathering = await _service.CreateAsync(host.Id, Tonight());
+        var request = await _service.RequestToJoinAsync(gathering.Id, guest.Id, new JoinGatheringRequest());
+        await _service.ApproveAsync(request.Id, host.Id);
+        return (host, guest, gathering);
+    }
+
+    private static SendGatheringMessageRequest Say(string body) => new() { Body = body };
+
+    [Fact]
+    public async Task Members_CanChat_AndEveryMemberIsNotified()
+    {
+        var (host, guest, gathering) = await GatheringWithGuestAsync();
+        _notifier.Sent.Clear();
+
+        var sent = await _service.SendMessageAsync(gathering.Id, guest.Id, Say("  On my way!  "));
+
+        Assert.Equal("On my way!", sent.Body);
+        Assert.Equal(0, sent.CreatedAt.Ticks % 10); // microseconds, as Postgres stores it
+        Assert.Equal(guest.Id, sent.Sender.Id);
+        Assert.Contains((host.Id, "GatheringMessageReceived:On my way!"), _notifier.Sent);
+        Assert.Contains((guest.Id, "GatheringMessageReceived:On my way!"), _notifier.Sent);
+
+        var page = await _service.GetMessagesAsync(gathering.Id, host.Id, before: null);
+        Assert.Equal(new[] { "On my way!" }, page.Messages.Select(m => m.Body));
+        Assert.True(page.CanSend);
+        Assert.False(page.HasMore);
+        Assert.Equal(sent.CreatedAt, (await _service.GetAsync(gathering.Id, host.Id)).LastMessageAt);
+    }
+
+    [Fact]
+    public async Task NonMembers_CannotReadOrPost()
+    {
+        var (_, _, gathering) = await GatheringWithGuestAsync();
+        var outsider = await AddUserAsync("outsider");
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            _service.GetMessagesAsync(gathering.Id, outsider.Id, before: null));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            _service.SendMessageAsync(gathering.Id, outsider.Id, Say("hi")));
+        Assert.Null((await _service.GetAsync(gathering.Id, outsider.Id)).LastMessageAt);
+    }
+
+    [Fact]
+    public async Task BlankMessages_AreRejected()
+    {
+        var (host, _, gathering) = await GatheringWithGuestAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _service.SendMessageAsync(gathering.Id, host.Id, Say("   ")));
+    }
+
+    [Fact]
+    public async Task EndedGathering_ChatIsReadOnly()
+    {
+        var (host, guest, gathering) = await GatheringWithGuestAsync();
+        await _service.SendMessageAsync(gathering.Id, guest.Id, Say("Good games"));
+        await _service.EndAsync(gathering.Id, host.Id);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _service.SendMessageAsync(gathering.Id, guest.Id, Say("One more?")));
+
+        var page = await _service.GetMessagesAsync(gathering.Id, guest.Id, before: null);
+        Assert.False(page.CanSend);
+        Assert.Single(page.Messages);
+    }
+
+    [Fact]
+    public async Task PastItsWindow_ChatIsClosed_BeforeTheWorkerEndsIt()
+    {
+        var (_, guest, gathering) = await GatheringWithGuestAsync();
+        var stored = await _db.Gatherings.FindAsync(gathering.Id);
+        stored!.StartsAt = DateTime.UtcNow.AddHours(-3);
+        stored.EndsAt = DateTime.UtcNow.AddMinutes(-1);
+        await _db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _service.SendMessageAsync(gathering.Id, guest.Id, Say("Still here?")));
+    }
+
+    [Fact]
+    public async Task Messages_ArePagedOldestFirst()
+    {
+        var (host, _, gathering) = await GatheringWithGuestAsync();
+        var start = DateTime.UtcNow.AddMinutes(-10);
+        for (var i = 0; i < 5; i++)
+        {
+            _db.GatheringMessages.Add(new GatheringMessage
+            {
+                Id = Guid.NewGuid(),
+                GatheringId = gathering.Id,
+                SenderId = host.Id,
+                Body = $"m{i}",
+                CreatedAt = start.AddMinutes(i)
+            });
+        }
+        await _db.SaveChangesAsync();
+
+        var latest = await _service.GetMessagesAsync(gathering.Id, host.Id, before: null, limit: 3);
+        Assert.Equal(new[] { "m2", "m3", "m4" }, latest.Messages.Select(m => m.Body));
+        Assert.True(latest.HasMore);
+
+        var earlier = await _service.GetMessagesAsync(
+            gathering.Id, host.Id, before: latest.Messages[0].CreatedAt, limit: 3);
+        Assert.Equal(new[] { "m0", "m1" }, earlier.Messages.Select(m => m.Body));
+        Assert.False(earlier.HasMore);
+    }
+
+    // ===== CHAT RECEIPTS =====
+
+    private static UpdateChatReceiptRequest Receipt(DateTime? delivered = null, DateTime? read = null) =>
+        new() { DeliveredUpTo = delivered, ReadUpTo = read };
+
+    [Fact]
+    public async Task Sending_MarksYourOwnMessageRead_ButNotOthers()
+    {
+        var (host, guest, gathering) = await GatheringWithGuestAsync();
+
+        var sent = await _service.SendMessageAsync(gathering.Id, guest.Id, Say("hi"));
+
+        Assert.Equal(sent.CreatedAt, (await _service.GetAsync(gathering.Id, guest.Id)).MyChatReadUpTo);
+        Assert.Null((await _service.GetAsync(gathering.Id, host.Id)).MyChatReadUpTo);
+    }
+
+    [Fact]
+    public async Task Receipts_MoveForward_ReadImpliesDelivered_AndOthersAreTold()
+    {
+        var (host, guest, gathering) = await GatheringWithGuestAsync();
+        var first = await _service.SendMessageAsync(gathering.Id, guest.Id, Say("one"));
+        var second = await _service.SendMessageAsync(gathering.Id, guest.Id, Say("two"));
+        _notifier.Sent.Clear();
+
+        await _service.UpdateChatReceiptAsync(gathering.Id, host.Id, Receipt(read: second.CreatedAt));
+        Assert.Equal(new[] { (guest.Id, $"GatheringChatReceipt:{host.Id}") }, _notifier.Sent);
+
+        // An older receipt arriving late changes nothing and tells no one
+        _notifier.Sent.Clear();
+        await _service.UpdateChatReceiptAsync(gathering.Id, host.Id, Receipt(delivered: first.CreatedAt, read: first.CreatedAt));
+        Assert.Empty(_notifier.Sent);
+
+        var receipts = (await _service.GetMessagesAsync(gathering.Id, guest.Id, before: null)).Receipts;
+        var hosts = receipts.Single(r => r.Member.Id == host.Id);
+        Assert.Equal(second.CreatedAt, hosts.ReadUpTo);
+        Assert.Equal(second.CreatedAt, hosts.DeliveredUpTo);
+        Assert.Equal(2, receipts.Count);
+    }
+
+    [Fact]
+    public async Task Receipts_CannotRunAheadOfTheClock()
+    {
+        var (host, _, gathering) = await GatheringWithGuestAsync();
+
+        await _service.UpdateChatReceiptAsync(gathering.Id, host.Id, Receipt(read: DateTime.UtcNow.AddDays(1)));
+
+        Assert.True((await _service.GetAsync(gathering.Id, host.Id)).MyChatReadUpTo <= DateTime.UtcNow);
+    }
+
+    [Fact]
+    public async Task NonMembers_CannotSendReceipts()
+    {
+        var (_, _, gathering) = await GatheringWithGuestAsync();
+        var outsider = await AddUserAsync("outsider");
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            _service.UpdateChatReceiptAsync(gathering.Id, outsider.Id, Receipt(read: DateTime.UtcNow)));
     }
 }

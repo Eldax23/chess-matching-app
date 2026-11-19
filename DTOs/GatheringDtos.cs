@@ -57,6 +57,10 @@ public class GatheringDto
     public Guid? MyPendingRequestId { get; set; }
     // People you've already reviewed for this gathering (only filled in on the detail view)
     public List<Guid> ReviewedByMe { get; set; } = new();
+    // When the latest chat message was sent (members only, detail view only)
+    public DateTime? LastMessageAt { get; set; }
+    // When the latest chat message you've seen was sent (members only, detail view only)
+    public DateTime? MyChatReadUpTo { get; set; }
 
     public DateTime CreatedAt { get; set; }
 }
@@ -82,4 +86,48 @@ public class JoinRequestsResponse
 {
     public List<JoinRequestDto> Requests { get; set; } = new();
     public int Count => Requests.Count;
+}
+
+public class SendGatheringMessageRequest
+{
+    public string Body { get; set; } = null!;
+}
+
+public class GatheringMessageDto
+{
+    public Guid Id { get; set; }
+    public Guid GatheringId { get; set; }
+    public GatheringPersonDto Sender { get; set; } = null!;
+    public string Body { get; set; } = null!;
+    public DateTime CreatedAt { get; set; }
+}
+
+public class GatheringMessagesResponse
+{
+    // Oldest first, so a page can be shown as is
+    public List<GatheringMessageDto> Messages { get; set; } = new();
+    public int Count => Messages.Count;
+    // Whether there are older messages before this page
+    public bool HasMore { get; set; }
+    // Whether the caller can still post (the gathering is active)
+    public bool CanSend { get; set; }
+    // How far each member has received and read, for delivered/read ticks
+    public List<ChatReceiptDto> Receipts { get; set; } = new();
+}
+
+public class ChatReceiptDto
+{
+    public GatheringPersonDto Member { get; set; } = null!;
+    public DateTime? DeliveredUpTo { get; set; }
+    public DateTime? ReadUpTo { get; set; }
+}
+
+/// <summary>
+/// Moves your receipts forward: pass the createdAt of the newest message that
+/// reached you and/or that you've seen. Reading implies delivery.
+/// </summary>
+public class UpdateChatReceiptRequest
+{
+    public DateTime? DeliveredUpTo { get; set; }
+    public DateTime? ReadUpTo { get; set; }
 }

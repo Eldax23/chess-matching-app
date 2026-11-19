@@ -14,6 +14,10 @@ public interface IGatheringNotifier
     Task JoinRequestResolvedAsync(Guid requesterId, JoinRequestResolvedPayload payload);
 
     Task GatheringUpdatedAsync(IEnumerable<Guid> memberIds, GatheringUpdatedPayload payload);
+
+    Task GatheringMessageReceivedAsync(IEnumerable<Guid> memberIds, GatheringMessageReceivedPayload payload);
+
+    Task GatheringChatReceiptAsync(IEnumerable<Guid> memberIds, GatheringChatReceiptPayload payload);
 }
 
 public class HubGatheringNotifier : IGatheringNotifier
@@ -35,6 +39,12 @@ public class HubGatheringNotifier : IGatheringNotifier
 
     public Task GatheringUpdatedAsync(IEnumerable<Guid> memberIds, GatheringUpdatedPayload payload) =>
         SendAsync(memberIds, "GatheringUpdated", payload);
+
+    public Task GatheringMessageReceivedAsync(IEnumerable<Guid> memberIds, GatheringMessageReceivedPayload payload) =>
+        SendAsync(memberIds, "GatheringMessageReceived", payload);
+
+    public Task GatheringChatReceiptAsync(IEnumerable<Guid> memberIds, GatheringChatReceiptPayload payload) =>
+        SendAsync(memberIds, "GatheringChatReceipt", payload);
 
     private async Task SendAsync(IEnumerable<Guid> userIds, string method, object payload)
     {

@@ -36,3 +36,14 @@ public class JoinGatheringRequestValidator : AbstractValidator<JoinGatheringRequ
         RuleFor(x => x.Message).MaximumLength(500);
     }
 }
+
+public class SendGatheringMessageRequestValidator : AbstractValidator<SendGatheringMessageRequest>
+{
+    public SendGatheringMessageRequestValidator()
+    {
+        RuleFor(x => x.Body)
+            .NotEmpty().WithMessage("Write a message first")
+            .Must(body => !string.IsNullOrWhiteSpace(body)).WithMessage("Write a message first")
+            .MaximumLength(1000);
+    }
+}

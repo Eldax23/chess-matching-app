@@ -113,6 +113,45 @@ public class GatheringsController : ControllerBase
         });
 
     /// <summary>
+    /// A page of the gathering's chat, oldest first. Pass the oldest message's
+    /// createdAt as <c>before</c> to load earlier messages. Members only.
+    /// </summary>
+    [HttpGet("{id}/messages")]
+    [ProducesResponseType(typeof(GatheringMessagesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public Task<IActionResult> GetMessages(Guid id, [FromQuery] DateTime? before, [FromQuery] int limit = 50)
+    {
+        limit = Math.Clamp(limit, 1, 100);
+        return Run("fetch chat messages", async userId =>
+            Ok(await _gatheringService.GetMessagesAsync(id, userId, before?.ToUniversalTime(), limit)));
+    }
+
+    /// <summary>
+    /// Post to the gathering's chat. Members only, while the gathering is active.
+    /// </summary>
+    [HttpPost("{id}/messages")]
+    [ProducesResponseType(typeof(GatheringMessageDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public Task<IActionResult> SendMessage(Guid id, [FromBody] SendGatheringMessageRequest request) =>
+        Run("send chat message", async userId =>
+            StatusCode(201, await _gatheringService.SendMessageAsync(id, userId, request)));
+
+    /// <summary>
+    /// Mark chat messages as delivered to you and/or read by you, up to a
+    /// message's createdAt. Receipts only move forward. Members only.
+    /// </summary>
+    [HttpPost("{id}/messages/receipt")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public Task<IActionResult> UpdateChatReceipt(Guid id, [FromBody] UpdateChatReceiptRequest request) =>
+        Run("update chat receipt", async userId =>
+        {
+            await _gatheringService.UpdateChatReceiptAsync(id, userId, request);
+            return NoContent();
+        });
+
+    /// <summary>
     /// Pending requests to join gatherings you're in, that you haven't said no to
     /// </summary>
     [HttpGet("requests")]

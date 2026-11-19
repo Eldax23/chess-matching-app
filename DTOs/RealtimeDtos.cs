@@ -40,3 +40,16 @@ public class GatheringUpdatedPayload
     public string Status { get; set; } = null!;
     public int MemberCount { get; set; }
 }
+
+public class GatheringChatReceiptPayload
+{
+    public Guid GatheringId { get; set; }
+    public Guid UserId { get; set; }
+    public DateTime? DeliveredUpTo { get; set; }
+    public DateTime? ReadUpTo { get; set; }
+}
+
+public class GatheringMessageReceivedPayload
+{
+    public GatheringMessageDto Message { get; set; } = null!;
+}

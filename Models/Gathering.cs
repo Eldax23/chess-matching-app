@@ -44,6 +44,11 @@ public class GatheringMember
     public virtual User User { get; set; } = null!;
 
     public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
+
+    // Chat receipts: the createdAt of the newest message that reached one of
+    // their devices, and of the newest one they've seen. Both only move forward.
+    public DateTime? ChatDeliveredUpTo { get; set; }
+    public DateTime? ChatReadUpTo { get; set; }
 }
 
 /// <summary>
@@ -84,6 +89,25 @@ public class JoinRequestRejection
     public virtual JoinRequest JoinRequest { get; set; } = null!;
 
     public Guid UserId { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// A chat message between the members of a gathering. Only members can read
+/// the chat, and they can post only while the gathering is active.
+/// </summary>
+public class GatheringMessage
+{
+    public Guid Id { get; set; }
+
+    public Guid GatheringId { get; set; }
+    public virtual Gathering Gathering { get; set; } = null!;
+
+    public Guid SenderId { get; set; }
+    public virtual User Sender { get; set; } = null!;
+
+    public string Body { get; set; } = null!;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
