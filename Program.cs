@@ -2,6 +2,7 @@ using System.Text;
 using Amazon.Runtime;
 using Amazon.S3;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using EFCore.NamingConventions;
@@ -99,7 +100,14 @@ builder.Services
 // AUTHORIZATION
 // =====================================================
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(EmailVerifiedRequirement.PolicyName, policy => policy
+        .RequireAuthenticatedUser()
+        .AddRequirements(new EmailVerifiedRequirement()));
+});
+builder.Services.AddScoped<IAuthorizationHandler, EmailVerifiedHandler>();
+builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, EmailVerifiedResultHandler>();
 
 // =====================================================
 // DEPENDENCY INJECTION
@@ -112,6 +120,28 @@ builder.Services.AddScoped<IBlockService, BlockService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IGatheringService, GatheringService>();
 builder.Services.AddSingleton<IGatheringNotifier, HubGatheringNotifier>();
+
+// Email verification codes. Email:Provider picks how they are delivered:
+// "Log" (default) only writes them to the server log; "Brevo" sends them
+// through Brevo's HTTPS API (Email:Brevo:ApiKey, Email:FromAddress).
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
+var emailOptions = builder.Configuration.GetSection("Email").Get<EmailOptions>() ?? new EmailOptions();
+if (string.Equals(emailOptions.Provider, "Brevo", StringComparison.OrdinalIgnoreCase))
+{
+    if (string.IsNullOrWhiteSpace(emailOptions.Brevo.ApiKey) || string.IsNullOrWhiteSpace(emailOptions.FromAddress))
+        throw new InvalidOperationException("Email:Provider is Brevo, so set Email:Brevo:ApiKey and Email:FromAddress");
+    builder.Services.AddHttpClient<IEmailSender, BrevoEmailSender>(client =>
+    {
+        client.BaseAddress = new Uri(emailOptions.Brevo.BaseUrl);
+        client.Timeout = TimeSpan.FromSeconds(15);
+    });
+}
+else
+{
+    builder.Services.AddSingleton<IEmailSender, LogEmailSender>();
+}
+builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
+builder.Services.AddHostedService<UnverifiedAccountCleanupWorker>();
 
 // Lichess account linking (OAuth PKCE)
 builder.Services.Configure<LichessOptions>(builder.Configuration.GetSection("Lichess"));

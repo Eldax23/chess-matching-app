@@ -37,3 +37,14 @@ public class LoginRequestValidator : AbstractValidator<LoginRequest>
         RuleFor(x => x.Password).NotEmpty();
     }
 }
+
+public class VerifyEmailRequestValidator : AbstractValidator<VerifyEmailRequest>
+{
+    public VerifyEmailRequestValidator()
+    {
+        RuleFor(x => x.Code)
+            .NotEmpty()
+            .Matches(@"^\s*\d{6}\s*$")
+            .WithMessage("Enter the 6-digit code from the email");
+    }
+}

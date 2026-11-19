@@ -10,6 +10,18 @@ public class User
     public string PasswordHash { get; set; } = null!;
     public string? FullName { get; set; }
 
+    // Email verification. Null until the player enters the code we emailed
+    // them (or signs up with Lichess, which already confirmed the email).
+    public DateTime? EmailVerifiedAt { get; set; }
+    // When the first code was sent; unverified accounts are deleted a week later
+    public DateTime? EmailVerificationRequestedAt { get; set; }
+    public string? EmailVerificationCodeHash { get; set; }
+    public DateTime? EmailVerificationCodeExpiresAt { get; set; }
+    public DateTime? EmailVerificationCodeSentAt { get; set; }
+    public int EmailVerificationFailedAttempts { get; set; }
+
+    public bool IsEmailVerified => EmailVerifiedAt != null;
+
     // Profile
     public string? PhotoUrl { get; set; }
     public string? Bio { get; set; }

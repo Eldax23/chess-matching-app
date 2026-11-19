@@ -8,7 +8,7 @@ namespace ChessApp.Backend.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
-[Authorize]
+[Authorize(Policy = EmailVerifiedRequirement.PolicyName)]
 public class GatheringsController : ControllerBase
 {
     private readonly IGatheringService _gatheringService;

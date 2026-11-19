@@ -24,6 +24,7 @@ public class ReviewsController : ControllerBase
     /// Leave a review for the other player in a completed match
     /// </summary>
     [HttpPost]
+    [Authorize(Policy = EmailVerifiedRequirement.PolicyName)]
     [ProducesResponseType(typeof(ReviewDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
