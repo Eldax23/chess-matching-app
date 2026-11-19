@@ -146,9 +146,19 @@ public class LichessIntegrationService : ILichessIntegrationService
         // Matching an existing player by email would hand their account to
         // whoever controls that email on Lichess, so ask them to link instead
         email = email?.Trim().ToLowerInvariant();
-        if (email != null && await _dbContext.Users.AnyAsync(u => u.Email == email, ct))
+        var sameEmail = email == null ? null : await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
+        if (sameEmail is { IsEmailVerified: true })
             throw new InvalidOperationException(
                 "You already have a BlitzMate account with this email. Sign in with your password, then connect Lichess from your profile.");
+        if (sameEmail != null)
+        {
+            // Lichess has confirmed this email belongs to whoever is signing in
+            // now, so an account that never proved it owned the address can't
+            // keep it from them
+            _logger.LogInformation("Replacing unverified user {UserId} whose email was confirmed via Lichess", sameEmail.Id);
+            _dbContext.Users.Remove(sameEmail);
+            await _dbContext.SaveChangesAsync(ct);
+        }
 
         var now = DateTime.UtcNow;
         var user = new User
@@ -158,6 +168,8 @@ public class LichessIntegrationService : ILichessIntegrationService
             Username = await PickUsernameAsync(lichessUser.Username, ct),
             // No password: this player signs in with Lichess only
             PasswordHash = "",
+            // Lichess already confirmed the email (or identity, when it shares none)
+            EmailVerifiedAt = now,
             IsActive = true,
             CreatedAt = now,
             UpdatedAt = now

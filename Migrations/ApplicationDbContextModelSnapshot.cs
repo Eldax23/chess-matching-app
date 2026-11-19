@@ -539,6 +539,31 @@ namespace ChessApp.Backend.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("email");
 
+                    b.Property<DateTime?>("EmailVerificationCodeExpiresAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("email_verification_code_expires_at");
+
+                    b.Property<string>("EmailVerificationCodeHash")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("email_verification_code_hash");
+
+                    b.Property<DateTime?>("EmailVerificationCodeSentAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("email_verification_code_sent_at");
+
+                    b.Property<int>("EmailVerificationFailedAttempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("email_verification_failed_attempts");
+
+                    b.Property<DateTime?>("EmailVerificationRequestedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("email_verification_requested_at");
+
+                    b.Property<DateTime?>("EmailVerifiedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("email_verified_at");
+
                     b.Property<string>("FideId")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")

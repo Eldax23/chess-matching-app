@@ -76,12 +76,42 @@ public class LichessSignInTests
     [Fact]
     public async Task EmailOfAnotherAccount_IsNotTakenOver()
     {
-        _db.Users.Add(new User { Id = Guid.NewGuid(), Email = "a@example.com", Username = "alice", PasswordHash = "x" });
+        _db.Users.Add(new User
+        {
+            Id = Guid.NewGuid(), Email = "a@example.com", Username = "alice", PasswordHash = "x",
+            EmailVerifiedAt = DateTime.UtcNow
+        });
         await _db.SaveChangesAsync();
         _lichess.User = new LichessUser { Id = "someone", Username = "Someone" };
         _lichess.Email = "a@example.com";
 
         await Assert.ThrowsAsync<InvalidOperationException>(SignInAsync);
+    }
+
+    [Fact]
+    public async Task UnverifiedAccountWithTheSameEmail_IsReplaced()
+    {
+        var squatter = new User { Id = Guid.NewGuid(), Email = "a@example.com", Username = "alice", PasswordHash = "x" };
+        _db.Users.Add(squatter);
+        await _db.SaveChangesAsync();
+        _lichess.User = new LichessUser { Id = "real-alice", Username = "RealAlice" };
+        _lichess.Email = "a@example.com";
+
+        var user = await SignInAsync();
+
+        Assert.NotEqual(squatter.Id, user.Id);
+        Assert.Equal("a@example.com", user.Email);
+        Assert.Equal(1, await _db.Users.CountAsync());
+    }
+
+    [Fact]
+    public async Task LichessSignUp_CountsAsVerified()
+    {
+        _lichess.User = new LichessUser { Id = "newbie", Username = "Newbie" };
+
+        var user = await SignInAsync();
+
+        Assert.True(user.IsEmailVerified);
     }
 
     [Fact]

@@ -22,3 +22,9 @@ services:
         value: Local
       - key: Storage__PublicBaseUrl
         value: https://blitzmate-api.onrender.com
+      # Email verification codes. Until these are set, codes only show up in
+      # the service log. To send real emails, create a free Brevo account,
+      # verify your sender address there, then set:
+      #   Email__Provider = Brevo
+      #   Email__FromAddress = the address you verified in Brevo
+      #   Email__Brevo__ApiKey = an API key from Brevo (SMTP & API > API keys)

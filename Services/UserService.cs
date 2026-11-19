@@ -190,6 +190,7 @@ public class UserService : IUserService
             .Where(u =>
                 u.Id != userId &&
                 u.IsActive &&
+                u.EmailVerifiedAt != null &&
                 u.IsAvailable &&
                 u.AvailabilityExpiresAt > DateTime.UtcNow &&
                 u.Location != null &&
@@ -257,6 +258,7 @@ public class UserService : IUserService
         {
             Id = user.Id,
             Email = user.Email,
+            EmailVerified = user.IsEmailVerified,
             Username = user.Username,
             FullName = user.FullName,
             PhotoUrl = user.PhotoUrl,

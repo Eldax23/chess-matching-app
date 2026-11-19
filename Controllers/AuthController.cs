@@ -1,3 +1,6 @@
+using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
+using ChessApp.Backend.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ChessApp.Backend.DTOs;
@@ -11,12 +14,21 @@ public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
     private readonly ILichessIntegrationService _lichess;
+    private readonly IEmailVerificationService _verification;
+    private readonly ApplicationDbContext _db;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IAuthService authService, ILichessIntegrationService lichess, ILogger<AuthController> logger)
+    public AuthController(
+        IAuthService authService,
+        ILichessIntegrationService lichess,
+        IEmailVerificationService verification,
+        ApplicationDbContext db,
+        ILogger<AuthController> logger)
     {
         _authService = authService;
         _lichess = lichess;
+        _verification = verification;
+        _db = db;
         _logger = logger;
     }
 
@@ -37,11 +49,23 @@ public class AuthController : ControllerBase
                 request.Password,
                 request.FullName);
 
+            // The account exists either way; if the email can't go out now the
+            // app's "send again" button retries
+            try
+            {
+                await _verification.SendCodeAsync(user);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Could not send the verification code to new user {UserId}", user.Id);
+            }
+
             var response = new AuthResponse
             {
                 UserId = user.Id,
                 Email = user.Email,
                 Username = user.Username,
+                EmailVerified = user.IsEmailVerified,
                 AccessToken = accessToken,
                 RefreshToken = refreshToken,
                 ExpiresIn = 3600
@@ -89,6 +113,7 @@ public class AuthController : ControllerBase
                 UserId = user.Id,
                 Email = user.Email,
                 Username = user.Username,
+                EmailVerified = user.IsEmailVerified,
                 AccessToken = accessToken,
                 RefreshToken = refreshToken,
                 ExpiresIn = 3600
@@ -150,6 +175,7 @@ public class AuthController : ControllerBase
                 UserId = user.Id,
                 Email = user.Email,
                 Username = user.Username,
+                EmailVerified = user.IsEmailVerified,
                 AccessToken = accessToken,
                 RefreshToken = refreshToken,
                 ExpiresIn = 3600
@@ -171,6 +197,66 @@ public class AuthController : ControllerBase
         {
             _logger.LogError(ex, "Lichess unreachable during sign-in");
             return StatusCode(502, new ErrorResponse { Error = "LichessUnavailable", Message = "Could not reach Lichess. Please try again." });
+        }
+    }
+
+    /// <summary>
+    /// Confirm the signed-in player's email with the 6-digit code we emailed
+    /// </summary>
+    [HttpPost("email/verify")]
+    [Authorize]
+    [ProducesResponseType(typeof(EmailVerificationStatusResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request, CancellationToken ct)
+    {
+        try
+        {
+            await _verification.VerifyAsync(GetUserId(), request.Code, ct);
+            return Ok(new EmailVerificationStatusResponse { EmailVerified = true });
+        }
+        catch (EmailVerificationException ex)
+        {
+            return BadRequest(new ErrorResponse { Error = ex.Error, Message = ex.Message });
+        }
+        catch (KeyNotFoundException)
+        {
+            return Unauthorized(new ErrorResponse { Error = "AuthenticationError", Message = "Please sign in again." });
+        }
+    }
+
+    /// <summary>
+    /// Email a new verification code (at most once a minute)
+    /// </summary>
+    [HttpPost("email/resend")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> ResendVerificationEmail(CancellationToken ct)
+    {
+        var userId = GetUserId();
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
+        if (user == null)
+            return Unauthorized(new ErrorResponse { Error = "AuthenticationError", Message = "Please sign in again." });
+
+        try
+        {
+            await _verification.SendCodeAsync(user, ct);
+            return NoContent();
+        }
+        catch (EmailVerificationException ex) when (ex.RetryAfterSeconds is { } wait)
+        {
+            Response.Headers.RetryAfter = wait.ToString();
+            return StatusCode(StatusCodes.Status429TooManyRequests, new ErrorResponse { Error = ex.Error, Message = ex.Message });
+        }
+        catch (EmailVerificationException ex)
+        {
+            return BadRequest(new ErrorResponse { Error = ex.Error, Message = ex.Message });
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Could not send the verification code to user {UserId}", userId);
+            return StatusCode(502, new ErrorResponse { Error = "EmailUnavailable", Message = "We couldn't send the email. Please try again soon." });
         }
     }
 
@@ -226,4 +312,8 @@ public class AuthController : ControllerBase
             });
         }
     }
+
+    private Guid GetUserId() =>
+        Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? throw new UnauthorizedAccessException("User ID not found in token"));
 }

@@ -47,7 +47,10 @@ public class AuthService : IAuthService
     public async Task<(User user, string accessToken, string refreshToken)> RegisterAsync(
         string email, string username, string password, string? fullName)
     {
-        // Check if user already exists
+        email = email.Trim().ToLowerInvariant();
+
+        // Check if user already exists. An unverified account keeps its email
+        // until it is confirmed or cleaned up (UnverifiedAccountCleanupWorker).
         var existingUser = await _dbContext.Users
             .FirstOrDefaultAsync(u => u.Email == email || u.Username == username);
 
@@ -59,7 +62,7 @@ public class AuthService : IAuthService
         var user = new User
         {
             Id = Guid.NewGuid(),
-            Email = email.ToLower(),
+            Email = email,
             Username = username,
             PasswordHash = HashPassword(password),
             FullName = fullName,
@@ -71,7 +74,7 @@ public class AuthService : IAuthService
         _dbContext.Users.Add(user);
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("User registered: {Email}", email);
+        _logger.LogInformation("User registered: {UserId}", user.Id);
 
         var accessToken = GenerateAccessToken(user);
         var refreshToken = await GenerateRefreshTokenAsync(user.Id);

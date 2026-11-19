@@ -60,6 +60,8 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.FullName).HasMaxLength(255);
             entity.Property(e => e.PhotoUrl).HasMaxLength(500);
             entity.Property(e => e.Bio).HasColumnType("text");
+            entity.Property(e => e.EmailVerificationCodeHash).HasMaxLength(100);
+            entity.Ignore(e => e.IsEmailVerified);
 
             // PostGIS Point for location
             entity.Property(e => e.Location)

@@ -9,7 +9,7 @@ namespace ChessApp.Backend.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
-[Authorize]
+[Authorize(Policy = EmailVerifiedRequirement.PolicyName)]
 public class AvailabilityController : ControllerBase
 {
     private readonly IUserService _userService;
